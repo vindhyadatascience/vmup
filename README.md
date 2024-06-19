@@ -18,7 +18,7 @@ This repository contains the Terraform code to launch a GCP instance.
     ./launch.sh
     ```
 
-Once the instance is created, you can SSH into the instance using the IP address printed to the console. For images with RStudio, you can navigate to port "8787". Your username and password are stored in ~/.env of the new instance.
+Once the instance is created, you can SSH into the instance using the IP address printed to the console. For images with RStudio, you can navigate to port "8787". Your username and password are stored in ~/.env of the new instance. You can change this password with `sudo passwd {userNameHere}`.
 
 To destroy the instance and all created artifacts, run:
 
