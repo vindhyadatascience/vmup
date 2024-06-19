@@ -1,13 +1,17 @@
 variable "username" {
-  description = "GCP username"
+  description = "Your GCP username. This is <username>@cloudshell."
 }
 
 variable "project_id" {
-  description = "GCP project ID to create the instance in."
+  description = "Which GCP project ID to create the instance in."
 }
 
 variable "vm_name" {
-  description = "Name of the VM instance"
+  description = "Name for your VM instance. Use all lowercase letters and no underscores. (e.g. my-awesome-vm)"
+}
+
+variable "image" {
+  description = "What source image should be used (e.g. vds-debian-12-base, vds-debian-12-rstudio, etc...)"
 }
 
 variable "region" {
@@ -20,10 +24,6 @@ variable "zone" {
 
 variable "machine_type" {
   default = "e2-standard-4"
-}
-
-variable "image" {
-  default = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/vds-debian-12-base"
 }
 
 provider "google" {
@@ -42,7 +42,7 @@ resource "google_compute_instance" "default" {
     mode = "READ_WRITE"
 
     initialize_params {
-      image = var.image
+      image = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/${var.image}"
       size  = 20
     }
   }
