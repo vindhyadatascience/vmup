@@ -12,44 +12,13 @@ This repository contains the Terraform code to launch a GCP instance.
     git clone https://github.com/vindhyadatascience/vds-gcp-launch-instance.git
     cd vds-gcp-launch-instance
     ```
-2. Initialize Terraform:
+2. Launch the wrapper script and answer the prompts. Press enter to accept defaults.
 
     ```bash
-    terraform init
+    ./launch.sh
     ```
 
-3. (Optional) Create a `terraform.tfvars` file and add the following variables:
-
-    ```hcl
-    # terraform.tfvars
-
-    username = "your_username"
-    project_id = "your_project_id"
-    vm_name = "your_vm_name"
-    region = "us-central1-a"
-    machine_type = "e2-standard-4"
-    image = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/vds-debian-12-base"
-    ```
-
-    Replace the values with your own.
-
-4. Plan the Terraform configuration:
-
-    ```bash
-    terraform plan
-    ```
-
-    Review the output and make sure everything looks good.
-
-5. Apply the Terraform configuration:
-
-    ```bash
-    terraform apply
-    ```
-
-    Confirm the action by typing `yes`.
-
-Once the instance is created, you can SSH into the instance using the IP address printed to the console.
+Once the instance is created, you can SSH into the instance using the IP address printed to the console. For images with RStudio, you can navigate to port "8787". Your username and password are stored in ~/.env of the new instance.
 
 To destroy the instance and all created artifacts, run:
 
