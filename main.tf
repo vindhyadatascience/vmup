@@ -15,7 +15,7 @@ variable "image" {
 }
 
 variable "region" {
-  default = "us-central1-a"
+  default = "us-central1"
 }
 
 variable "zone" {
@@ -55,7 +55,17 @@ resource "google_compute_instance" "default" {
   }
 
    metadata = {
-    startup-script = "sudo usermod -aG docker ${var.username}"
+    startup-script = <<-EOF
+    #!/bin/bash
+    # Add user to docker group
+    sudo usermod -aG docker ${var.username}
+
+    # Generate temporary password for user
+    PASSWORD=$(openssl rand -base64 15)
+    echo "Username=${var.username}"
+    echo "Password=$${PASSWORD}" > ~/.env
+    echo "${var.username}:$${PASSWORD}" | sudo chpasswd
+    EOF
   }
 
   tags = ["http-server", "https-server"]
