@@ -8,7 +8,7 @@ default_password=$(openssl rand -base64 15)
 read -p "Enter value for 'username' (default: ${USER}): " username
 username=${username:-${USER}}
 
-read -p "Enter value for 'password' (default: ${default_password}): " password
+read -sp "Enter value for 'password' (default: ${default_password}): " password
 password=${password:-${default_password}}
 
 read -p "Enter value for 'project_id' (default: eric-sandbox-421120): " project_id
