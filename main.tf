@@ -2,6 +2,10 @@ variable "username" {
   description = "Your GCP username. This is <username>@cloudshell."
 }
 
+variable "password" {
+  description = "Configure your user account password."
+}
+
 variable "project_id" {
   description = "Which GCP project ID to create the instance in."
 }
@@ -61,10 +65,9 @@ resource "google_compute_instance" "default" {
     sudo usermod -aG docker ${var.username}
 
     # Generate temporary password for user
-    PASSWORD=$(openssl rand -base64 15)
-    echo "Username=${var.username}"
-    echo "Password=$${PASSWORD}" > ~/.env
-    echo "${var.username}:$${PASSWORD}" | sudo chpasswd
+    echo "Username=${var.username}" > /home/${var.username}/.env
+    echo "Password=${var.password}" >> /home/${var.username}/.env
+    echo "${var.username}:${var.password}" | sudo chpasswd
     EOF
   }
 
@@ -105,4 +108,12 @@ resource "null_resource" "restart_instance" {
 
 output "instance_ip" {
   value = google_compute_instance.default.network_interface[0].access_config[0].nat_ip
+}
+
+output "username" {
+  value = var.username
+}
+
+output "password" {
+  value = var.password
 }
