@@ -30,6 +30,10 @@ variable "machine_type" {
   default = "e2-standard-4"
 }
 
+variable "timestamp" {
+  description = "Timestamp for assigning instance id and static address name."
+}
+
 provider "google" {
   project = var.project_id
   region = var.region
@@ -54,7 +58,8 @@ resource "google_compute_instance" "default" {
   network_interface {
     network = "default"
     access_config {
-      // Ephemeral IP
+      // External IP assigned form this static IP
+      nat_ip = google_compute_address.static.address
     }
   }
 
@@ -72,6 +77,10 @@ resource "google_compute_instance" "default" {
   }
 
   tags = ["http-server", "https-server"]
+}
+
+resource "google_compute_address" "static" {
+  name = "static-ip-address-${var.timestamp}"
 }
 
 resource "google_compute_firewall" "allow-http" {

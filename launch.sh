@@ -39,6 +39,7 @@ image = "$image"
 region = "$region"
 zone = "$zone"
 machine_type = "$machine_type"
+timestamp="$timestamp"
 EOF
 
 # Run Terraform commands
