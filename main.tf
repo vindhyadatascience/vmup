@@ -125,4 +125,5 @@ output "username" {
 
 output "password" {
   value = var.password
+  sensitive = true
 }
