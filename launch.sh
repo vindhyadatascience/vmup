@@ -9,16 +9,17 @@ read -p "Enter value for 'username' (default: ${USER}): " username
 username=${username:-${USER}}
 
 read -sp "Enter value for 'password' (default: ${default_password}): " password
+echo
 password=${password:-${default_password}}
 
 read -p "Enter value for 'project_id' (default: eric-sandbox-421120): " project_id
 project_id=${project_id:-eric-sandbox-421120}
 
-read -p "Enter value for 'vm_name' (default: instance-${timestamp}): " vm_name
+read -p "Enter value for 'vm-name' (default: instance-${timestamp}): " vm_name
 vm_name=${vm_name:-instance-${timestamp}}
 
-read -p "Enter value for 'image' (default: vds-debian-12-rstudio-4-1-1): " image
-image=${image:-vds-debian-12-rstudio-4-1-1}
+read -p "Enter value for 'image' (default: vds-debian-12-rstudio-4-4-1): " image
+image=${image:-vds-debian-12-rstudio-4-4-1}
 
 read -p "Enter value for 'region' (default: us-central1): " region
 region=${region:-us-central1}
