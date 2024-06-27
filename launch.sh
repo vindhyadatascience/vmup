@@ -3,6 +3,14 @@
 ## Initialize some default variables
 timestamp=$(date +"%Y%m%d-%H%M%S")
 default_password=$(openssl rand -base64 15)
+declare -A default_project_id=(
+    [eric]=eric-sandbox-421120 \
+    [adnan]=sandbox-ad-359715 \
+    [sarah]=sad-sandbox \
+    [alex]=rstudio-server-instance \
+    [chinmaya]=chinmaya-sandbox \
+    [jared]=jared-project-378819 \
+)
 
 # Prompt the user for variable values (with default values)
 read -p "Enter value for 'username' (default: ${USER}): " username
@@ -12,8 +20,16 @@ read -sp "Enter value for 'password' (default: ${default_password}): " password
 echo
 password=${password:-${default_password}}
 
-read -p "Enter value for 'project_id' (default: eric-sandbox-421120): " project_id
-project_id=${project_id:-eric-sandbox-421120}
+if [ ! -z "${default_project_id[$username]}" ]
+then
+    read -p "Enter value for 'project_id' (default: ${default_project_id[$username]}): " project_id
+    project_id=${project_id:-${default_project_id[$username]}}
+else
+    while [[ -z "$project_id" ]]
+    do
+        read -p "Enter value for 'project_id': " project_id
+    done
+fi
 
 read -p "Enter value for 'vm-name' (default: instance-${timestamp}): " vm_name
 vm_name=${vm_name:-instance-${timestamp}}
