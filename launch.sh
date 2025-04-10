@@ -2,20 +2,8 @@
 
 ## Initialize some default variables
 timestamp=$(date +"%Y%m%d-%H%M%S")
-default_password=$(openssl rand -base64 15)
-
-# Define project IDs using case statement (compatible with older Bash versions)
-get_default_project() {
-    case "$1" in
-        "eric") echo "eric-sandbox-421120" ;;
-        "adnan") echo "sandbox-ad-359715" ;;
-        "sarah") echo "sad-sandbox" ;;
-        "alex") echo "rstudio-server-instance" ;;
-        "chinmaya") echo "chinmaya-sandbox" ;;
-        "jared") echo "jared-project-378819" ;;
-        *) echo "" ;;
-    esac
-}
+default_password=$(openssl rand -hex 15)
+default_project=$(gcloud config list --format 'value(core.project)')
 
 # Prompt the user for variable values (with default values)
 read -p "Enter value for 'username' (default: ${USER}): " username
@@ -25,7 +13,6 @@ read -sp "Enter value for 'password' (default: ${default_password}): " password
 echo
 password=${password:-${default_password}}
 
-default_project=$(get_default_project "$username")
 if [ ! -z "$default_project" ]
 then
     read -p "Enter value for 'project_id' (default: ${default_project}): " project_id
