@@ -3,7 +3,7 @@
 ## Initialize some default variables
 timestamp=$(date +"%Y%m%d-%H%M%S")
 default_password=$(openssl rand -base64 15)
-declare -A default_project_id=(
+declare -a default_project_id=(
     [eric]=eric-sandbox-421120 \
     [adnan]=sandbox-ad-359715 \
     [sarah]=sad-sandbox \
@@ -62,3 +62,22 @@ EOF
 # Run Terraform commands
 terraform init
 terraform apply
+
+echo ""
+echo "=============================="
+echo " SETUP COMPLETE"
+echo "=============================="
+echo "Your RStudio environment is ready!"
+echo ""
+echo "RStudio URL: http://localhost:8787"
+echo "Username: $username"
+echo "Password: $password"
+echo ""
+echo "To manage the SSH tunnel:"
+echo "- Start: ./start_rstudio_tunnel.sh"
+echo "- Stop:  ./stop_rstudio_tunnel.sh"
+echo ""
+echo "If your connection is lost, simply run ./start_rstudio_tunnel.sh to reconnect."
+echo "=============================="
+echo "Starting RStudio tunnel..."
+./start_rstudio_tunnel.sh

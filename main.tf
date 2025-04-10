@@ -57,10 +57,6 @@ resource "google_compute_instance" "default" {
 
   network_interface {
     network = "default"
-    access_config {
-      // External IP assigned form this static IP
-      nat_ip = google_compute_address.static.address
-    }
   }
 
    metadata = {
@@ -79,10 +75,6 @@ resource "google_compute_instance" "default" {
   tags = ["http-server", "https-server"]
 }
 
-resource "google_compute_address" "static" {
-  name = "static-ip-address-${var.timestamp}"
-}
-
 resource "google_compute_firewall" "allow-http" {
   name = "allow-http-${var.timestamp}"
   network = "default"
@@ -92,7 +84,7 @@ resource "google_compute_firewall" "allow-http" {
     ports = ["80", "8787"]
   }
   target_tags = ["http-server"]
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = ["35.235.240.0/20"]
 }
 
 resource "google_compute_firewall" "allow-https" {
@@ -104,7 +96,51 @@ resource "google_compute_firewall" "allow-https" {
     ports = ["443", "8787"]
   }
   target_tags = ["https-server"]
-  source_ranges = ["0.0.0.0/0"]
+  source_ranges = ["35.235.240.0/20"]
+}
+
+resource "google_compute_firewall" "allow-ssh-ingress-from-iap" {
+  name = "allow-ssh-ingress-from-iap-${var.timestamp}"
+  network = "default"
+  direction = "INGRESS"
+  allow {
+    protocol = "tcp"
+    ports = ["22"]
+  }
+  source_ranges = ["35.235.240.0/20"]
+}
+
+# Checks for existing router
+data "google_compute_router" "existing_router" {
+  count = 1 # ensures we only try to fetch it once
+  name = "nat-router"
+  region = var.region
+  network = "default"
+  project = var.project_id
+}
+
+locals {
+  router_exists = length(data.google_compute_router.existing_router) > 0 ? true : false
+}
+
+resource "google_compute_router" "nat_router" {
+  count = local.router_exists ? 0 : 1
+  name = "nat-router"
+  network = "default"
+  region = var.region
+}
+
+# We don't need to create a NAT configuration if one already exists
+# If we're creating a new router, we'll add the NAT configuration
+resource "google_compute_router_nat" "nat_config" {
+  count = local.router_exists ? 0 : 1
+  name = "nat-config"
+  router = google_compute_router.nat_router[0].name
+  region = var.region
+  nat_ip_allocate_option = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  
+  depends_on = [google_compute_router.nat_router]
 }
 
 resource "null_resource" "restart_instance" {
@@ -115,8 +151,88 @@ resource "null_resource" "restart_instance" {
   }
 }
 
-output "instance_ip" {
-  value = google_compute_instance.default.network_interface[0].access_config[0].nat_ip
+# Enable required IAP services
+resource "google_project_service" "iap_api" {
+  project = var.project_id
+  service = "iap.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Add IAP tunnel access to your instance
+resource "google_iap_tunnel_instance_iam_binding" "rstudio_iap_tunnel" {
+  project  = var.project_id
+  zone     = var.zone
+  instance = google_compute_instance.default.name
+  role     = "roles/iap.tunnelResourceAccessor"
+  members  = ["user:${var.username}@vindhyadatascience.com"]
+}
+
+# Create the SSH tunnel control scripts
+resource "local_file" "start_tunnel_script" {
+  filename = "start_rstudio_tunnel.sh"
+  content  = <<-EOT
+    #!/bin/bash
+    
+    # Kill any existing tunnels to prevent port conflicts
+    pkill -f "ssh.*8787" 2>/dev/null
+    
+    # Start the tunnel in the background
+    gcloud compute ssh ${google_compute_instance.default.name} \
+      --project=${var.project_id} \
+      --zone=${var.zone} \
+      --tunnel-through-iap \
+      -- -L 8787:localhost:8787 -N -f
+    
+    tunnel_status=$?
+    
+    if [ $tunnel_status -eq 0 ]; then
+      echo "RStudio tunnel established successfully!"
+      echo "Access RStudio at http://localhost:8787"
+      echo "Username: ${var.username}"
+      echo "Password: As configured during setup"
+      echo "To stop the tunnel and VM, run: ./stop_rstudio_tunnel.sh"
+    else
+      echo "Failed to establish tunnel. Please try again."
+    fi
+    
+    # Explicitly exit the script
+    exit $tunnel_status
+  EOT
+
+  provisioner "local-exec" {
+    command = "chmod +x start_rstudio_tunnel.sh"
+  }
+}
+
+resource "local_file" "stop_tunnel_script" {
+  filename = "stop_rstudio_tunnel.sh"
+  content  = <<-EOT
+    #!/bin/bash
+    
+    # Kill any existing tunnels
+    echo "Closing SSH tunnel..."
+    pkill -f "ssh.*8787"
+    
+    # Optionally stop the VM to save costs
+    read -p "Do you want to stop the VM (${google_compute_instance.default.name}) to save costs? (y/N): " STOP_VM
+    if [[ "$STOP_VM" =~ ^[Yy]$ ]]; then
+      echo "Stopping VM ${google_compute_instance.default.name}..."
+      gcloud compute instances stop ${google_compute_instance.default.name} \
+        --project=${var.project_id} \
+        --zone=${var.zone}
+      
+      echo "VM stopped successfully. To restart it and the tunnel, run:"
+      echo "gcloud compute instances start ${google_compute_instance.default.name} --project=${var.project_id} --zone=${var.zone}"
+      echo "Then run: ./start_rstudio_tunnel.sh"
+    else
+      echo "VM is still running. Tunnel closed."
+      echo "To restart the tunnel, run: ./start_rstudio_tunnel.sh"
+    fi
+  EOT
+
+  provisioner "local-exec" {
+    command = "chmod +x stop_rstudio_tunnel.sh"
+  }
 }
 
 output "username" {
@@ -126,4 +242,17 @@ output "username" {
 output "password" {
   value = var.password
   sensitive = true
+}
+
+output "rstudio_url" {
+  value = "http://localhost:8787"
+  description = "Access RStudio at this URL after the tunnel is established"
+}
+
+output "tunnel_commands" {
+  value = <<-EOT
+    Start tunnel: ./start_rstudio_tunnel.sh
+    Stop tunnel:  ./stop_rstudio_tunnel.sh
+  EOT
+  description = "Commands to manage the RStudio SSH tunnel"
 }
