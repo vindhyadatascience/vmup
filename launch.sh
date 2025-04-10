@@ -3,14 +3,19 @@
 ## Initialize some default variables
 timestamp=$(date +"%Y%m%d-%H%M%S")
 default_password=$(openssl rand -base64 15)
-declare -a default_project_id=(
-    [eric]=eric-sandbox-421120 \
-    [adnan]=sandbox-ad-359715 \
-    [sarah]=sad-sandbox \
-    [alex]=rstudio-server-instance \
-    [chinmaya]=chinmaya-sandbox \
-    [jared]=jared-project-378819 \
-)
+
+# Define project IDs using case statement (compatible with older Bash versions)
+get_default_project() {
+    case "$1" in
+        "eric") echo "eric-sandbox-421120" ;;
+        "adnan") echo "sandbox-ad-359715" ;;
+        "sarah") echo "sad-sandbox" ;;
+        "alex") echo "rstudio-server-instance" ;;
+        "chinmaya") echo "chinmaya-sandbox" ;;
+        "jared") echo "jared-project-378819" ;;
+        *) echo "" ;;
+    esac
+}
 
 # Prompt the user for variable values (with default values)
 read -p "Enter value for 'username' (default: ${USER}): " username
@@ -20,10 +25,11 @@ read -sp "Enter value for 'password' (default: ${default_password}): " password
 echo
 password=${password:-${default_password}}
 
-if [ ! -z "${default_project_id[$username]}" ]
+default_project=$(get_default_project "$username")
+if [ ! -z "$default_project" ]
 then
-    read -p "Enter value for 'project_id' (default: ${default_project_id[$username]}): " project_id
-    project_id=${project_id:-${default_project_id[$username]}}
+    read -p "Enter value for 'project_id' (default: ${default_project}): " project_id
+    project_id=${project_id:-${default_project}}
 else
     while [[ -z "$project_id" ]]
     do
@@ -59,10 +65,20 @@ machine_type = "$machine_type"
 timestamp="$timestamp"
 EOF
 
-# Run Terraform commands
+# Run Terraform commands and check for errors
 terraform init
-terraform apply
+if [ $? -ne 0 ]; then
+  echo "Terraform initialization failed. Please check the errors above."
+  exit 1
+fi
 
+terraform apply
+if [ $? -ne 0 ]; then
+  echo "Terraform apply failed. Please check the errors above."
+  exit 1
+fi
+
+# Only display completion message if all commands succeeded
 echo ""
 echo "=============================="
 echo " SETUP COMPLETE"

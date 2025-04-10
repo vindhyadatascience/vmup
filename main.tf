@@ -110,37 +110,20 @@ resource "google_compute_firewall" "allow-ssh-ingress-from-iap" {
   source_ranges = ["35.235.240.0/20"]
 }
 
-# Checks for existing router
-data "google_compute_router" "existing_router" {
-  count = 1 # ensures we only try to fetch it once
-  name = "nat-router"
-  region = var.region
-  network = "default"
-  project = var.project_id
-}
-
-locals {
-  router_exists = length(data.google_compute_router.existing_router) > 0 ? true : false
-}
-
+# Create a router with timestamp in the name
 resource "google_compute_router" "nat_router" {
-  count = local.router_exists ? 0 : 1
-  name = "nat-router"
+  name = "nat-router-${var.timestamp}"
   network = "default"
   region = var.region
 }
 
-# We don't need to create a NAT configuration if one already exists
-# If we're creating a new router, we'll add the NAT configuration
+# Create NAT configuration with timestamp in the name
 resource "google_compute_router_nat" "nat_config" {
-  count = local.router_exists ? 0 : 1
-  name = "nat-config"
-  router = google_compute_router.nat_router[0].name
+  name = "nat-config-${var.timestamp}"
+  router = google_compute_router.nat_router.name
   region = var.region
   nat_ip_allocate_option = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
-  
-  depends_on = [google_compute_router.nat_router]
 }
 
 resource "null_resource" "restart_instance" {
