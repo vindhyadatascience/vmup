@@ -36,18 +36,18 @@ variable "timestamp" {
 
 provider "google" {
   project = var.project_id
-  region = var.region
-  zone = var.zone
+  region  = var.region
+  zone    = var.zone
 }
 
 resource "google_compute_instance" "default" {
-  name = var.vm_name
+  name         = var.vm_name
   machine_type = var.machine_type
-  
+
   boot_disk {
     auto_delete = true
     device_name = "boot"
-    mode = "READ_WRITE"
+    mode        = "READ_WRITE"
 
     initialize_params {
       image = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/${var.image}"
@@ -59,7 +59,7 @@ resource "google_compute_instance" "default" {
     network = "default"
   }
 
-   metadata = {
+  metadata = {
     startup-script = <<-EOF
     #!/bin/bash
     # Add user to docker group
@@ -76,53 +76,53 @@ resource "google_compute_instance" "default" {
 }
 
 resource "google_compute_firewall" "allow-http" {
-  name = "allow-http-${var.timestamp}"
+  name    = "allow-http-${var.timestamp}"
   network = "default"
 
   allow {
     protocol = "tcp"
-    ports = ["80", "8787"]
+    ports    = ["80", "8787"]
   }
-  target_tags = ["http-server"]
+  target_tags   = ["http-server"]
   source_ranges = ["35.235.240.0/20"]
 }
 
 resource "google_compute_firewall" "allow-https" {
-  name = "allow-https-${var.timestamp}"
+  name    = "allow-https-${var.timestamp}"
   network = "default"
 
   allow {
     protocol = "tcp"
-    ports = ["443", "8787"]
+    ports    = ["443", "8787"]
   }
-  target_tags = ["https-server"]
+  target_tags   = ["https-server"]
   source_ranges = ["35.235.240.0/20"]
 }
 
 resource "google_compute_firewall" "allow-ssh-ingress-from-iap" {
-  name = "allow-ssh-ingress-from-iap-${var.timestamp}"
-  network = "default"
+  name      = "allow-ssh-ingress-from-iap-${var.timestamp}"
+  network   = "default"
   direction = "INGRESS"
   allow {
     protocol = "tcp"
-    ports = ["22"]
+    ports    = ["22"]
   }
   source_ranges = ["35.235.240.0/20"]
 }
 
 # Create a router with timestamp in the name
 resource "google_compute_router" "nat_router" {
-  name = "nat-router-${var.timestamp}"
+  name    = "nat-router-${var.timestamp}"
   network = "default"
-  region = var.region
+  region  = var.region
 }
 
 # Create NAT configuration with timestamp in the name
 resource "google_compute_router_nat" "nat_config" {
-  name = "nat-config-${var.timestamp}"
-  router = google_compute_router.nat_router.name
-  region = var.region
-  nat_ip_allocate_option = "AUTO_ONLY"
+  name                               = "nat-config-${var.timestamp}"
+  router                             = google_compute_router.nat_router.name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
 }
 
@@ -136,8 +136,8 @@ resource "null_resource" "restart_instance" {
 
 # Enable required IAP services
 resource "google_project_service" "iap_api" {
-  project = var.project_id
-  service = "iap.googleapis.com"
+  project            = var.project_id
+  service            = "iap.googleapis.com"
   disable_on_destroy = false
 }
 
@@ -158,6 +158,11 @@ resource "local_file" "start_tunnel_script" {
     
     # Kill any existing tunnels to prevent port conflicts
     pkill -f "ssh.*8787" 2>/dev/null
+
+    # Start the VM instance (if stopped)
+    gcloud compute instances start ${google_compute_instance.default.name} \
+      --project=${var.project_id} \
+      --zone=${var.zone}
     
     # Start the tunnel in the background
     gcloud compute ssh ${google_compute_instance.default.name} \
@@ -204,8 +209,8 @@ resource "local_file" "stop_tunnel_script" {
         --project=${var.project_id} \
         --zone=${var.zone}
       
-      echo "VM stopped successfully. To restart it and the tunnel, run:"
-      echo "gcloud compute instances start ${google_compute_instance.default.name} --project=${var.project_id} --zone=${var.zone}"
+      echo "VM stopped successfully."
+      echo "To start the VM and re-establish the tunnel, run:"
       echo "Then run: ./start_rstudio_tunnel.sh"
     else
       echo "VM is still running. Tunnel closed."
@@ -223,17 +228,17 @@ output "username" {
 }
 
 output "password" {
-  value = var.password
+  value     = var.password
   sensitive = true
 }
 
 output "rstudio_url" {
-  value = "http://localhost:8787"
+  value       = "http://localhost:8787"
   description = "Access RStudio at this URL after the tunnel is established"
 }
 
 output "tunnel_commands" {
-  value = <<-EOT
+  value       = <<-EOT
     Start tunnel: ./start_rstudio_tunnel.sh
     Stop tunnel:  ./stop_rstudio_tunnel.sh
   EOT
