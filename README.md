@@ -15,7 +15,7 @@ This is a one-time setup per local machine.
 
 ## Deploying a VM
 
-1. Log into your GCP cloud shell and clone this repository:
+1. Open a terminal on your local machine and clone this repository:
 
    ```bash
    git clone https://github.com/vindhyadatascience/vds-gcp-launch-instance.git
@@ -28,7 +28,19 @@ This is a one-time setup per local machine.
    ./launch.sh
    ```
 
-Once the instance is created, you can SSH into the instance using the IP address printed to the console. For images with RStudio, you can navigate to port "8787". Your username and password are stored in ~/.env of the new instance. You can change this password with `sudo passwd {userNameHere}`.
+Once the instance is created, you can SSH into the instance using the ssh tunneling set up by the script. For images with RStudio, you can navigate to [localhost:8787](http://localhost:8787/). Your username and password are stored in ~/.env of the new instance. You can change this password with `sudo passwd {userNameHere}`.
+
+You will need to stop & restart the ssh tunneling as your workflow allows. You can use the following command to stop the ssh tunneling & stop the instance when you are done working.
+   ```bash
+   ./stop_rstudio_tunnel.sh
+   ```
+
+You can restart the tunneling & the instance using the following command.
+   ```bash
+   ./start_rstudio_tunnel.sh
+   ```
+
+You need to stop the ssh tunnleing before you destroy the instance & it's related artifacts.
 
 To destroy the instance and all created artifacts, run:
 
