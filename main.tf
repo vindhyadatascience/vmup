@@ -27,11 +27,28 @@ variable "zone" {
 }
 
 variable "machine_type" {
-  default = "e2-standard-4"
+  default = "e2-highmem-2"
+}
+
+variable "boot_disk_size" {
+  default = 20
+  type = number
 }
 
 variable "timestamp" {
   description = "Timestamp for assigning instance id and static address name."
+}
+
+variable "server_ports" {
+  description = "List of server ports to forward (comma-separated string, first port should be RStudio)"
+  default     = ""
+  type        = string
+}
+
+variable "number_of_ports" {
+  description = "Number of SSH tunnel ports to configure"
+  default     = 1
+  type        = number
 }
 
 provider "google" {
@@ -51,7 +68,7 @@ resource "google_compute_instance" "default" {
 
     initialize_params {
       image = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/${var.image}"
-      size  = 20
+      size  = var.boot_disk_size
     }
   }
 
@@ -64,6 +81,7 @@ resource "google_compute_instance" "default" {
     #!/bin/bash
     # Add user to docker group
     sudo usermod -aG docker ${var.username}
+    sudo apt-get update && sudo apt-get dist-upgrade
 
     # Generate temporary password for user
     echo "Username=${var.username}" > /home/${var.username}/.env
@@ -81,7 +99,8 @@ resource "google_compute_firewall" "allow-http" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80", "8787"]
+    # Use a broader port range to accommodate any dynamically assigned port
+    ports    = ["80", "8000-9999"]
   }
   target_tags   = ["http-server"]
   source_ranges = ["35.235.240.0/20"]
@@ -93,7 +112,8 @@ resource "google_compute_firewall" "allow-https" {
 
   allow {
     protocol = "tcp"
-    ports    = ["443", "8787"]
+    # Use a broader port range to accommodate any dynamically assigned port
+    ports    = ["443", "8000-9999"]
   }
   target_tags   = ["https-server"]
   source_ranges = ["35.235.240.0/20"]
@@ -153,94 +173,182 @@ resource "google_iap_tunnel_instance_iam_binding" "rstudio_iap_tunnel" {
 # Create the SSH tunnel control scripts
 resource "local_file" "start_tunnel_script" {
   filename = "start_rstudio_tunnel.sh"
-  content  = <<-EOT
-    #!/bin/bash
-    
-    # Kill any existing tunnels to prevent port conflicts
-    pkill -f "ssh.*8787" 2>/dev/null
+  content  = <<EOT
+#!/bin/bash
 
-    # Start the VM instance (if stopped)
-    gcloud compute instances start ${google_compute_instance.default.name} \
-      --project=${var.project_id} \
-      --zone=${var.zone}
-    
+# Function to find the first available port starting from a given port
+find_available_port() {
+    local port=$1
+    local max_port=$((port + 1000))  # Limit the search to port+1000
+
+    while [ $port -le $max_port ]; do
+        # Check if the port is in use - more thorough check
+        if ! (netstat -tuln | grep -q ":$port " || lsof -i:$port > /dev/null 2>&1); then
+            echo $port
+            return 0
+        fi
+        port=$((port + 1))
+    done
+
+    # If we get here, no ports were available
+    echo "No available ports found between $1 and $max_port"
+    return 1
+}
+
+# Get the number of tunnel ports to set up
+# NUM_PORTS=${var.number_of_ports}
+
+# Find available ports for all services
+
+IFS=',' read -ra SERVER_PORTS <<< "${var.server_ports}"
+
+# SERVER_PORTS=split(",", var.server_ports)
+
+# Clean up any previous port tracking
+rm -f .tunnel_ports
+
+# Start the VM instance (if stopped)
+gcloud compute instances start ${google_compute_instance.default.name} \
+  --project=${var.project_id} \
+  --zone=${var.zone}
+
+# If this isn't here, the ssh tunneling fails the first time.
+sleep 20
+
+# Kill any existing tunnels (cleanup before starting new ones)
+pkill -f "ssh.*-L.*localhost" 2>/dev/null
+
+echo "=============================="
+echo " SETTING UP SSH TUNNELS"
+echo "=============================="
+
+success_count=0
+
+# Set up tunnels for all found ports
+for ((i=0; i<$${#SERVER_PORTS[@]}; i++)); do
+
+    if [ $i -eq 0 ]; then
+      SERVER_SIDE_PORT=8787
+    else
+      SERVER_SIDE_PORT=$${SERVER_PORTS[$i]}
+    fi
+
+    LOCAL_PORT=$${SERVER_PORTS[$i]}
+    echo "Setting up tunnel $((i+1)) of $${#SERVER_PORTS[@]} using local port $LOCAL_PORT..."
+
+    # Store the mapping in the ports tracking file
+    echo "$LOCAL_PORT:$${SERVER_PORTS[$i]}:$([ $i -eq 0 ] && echo 'RStudio' || echo 'Service')" >> .tunnel_ports
+
+    # Kill any existing tunnels to prevent port conflicts
+    pkill -f "ssh.*:$LOCAL_PORT" 2>/dev/null
+
     # Start the tunnel in the background
     gcloud compute ssh ${google_compute_instance.default.name} \
       --project=${var.project_id} \
       --zone=${var.zone} \
       --tunnel-through-iap \
-      -- -L 8787:localhost:8787 -N -f
-    
+      -- -L $LOCAL_PORT:localhost:$SERVER_SIDE_PORT -N -f
+
     tunnel_status=$?
-    
+
     if [ $tunnel_status -eq 0 ]; then
-      echo "RStudio tunnel established successfully!"
-      echo "Access RStudio at http://localhost:8787"
-      echo "Username: ${var.username}"
-      echo "Password: As configured during setup"
-      echo "To stop the tunnel and VM, run: ./stop_rstudio_tunnel.sh"
+      success_count=$((success_count + 1))
     else
-      echo "Failed to establish tunnel. Please try again."
+      echo "Failed to establish tunnel $((i+1)). Please try again."
     fi
-    
-    # Explicitly exit the script
-    exit $tunnel_status
-  EOT
+
+    echo "------------------------------"
+done
+
+if [ $success_count -gt 0 ]; then
+  echo ""
+  echo "=============================="
+  echo " SETUP COMPLETE"
+  echo "=============================="
+  echo "Your tunnels are ready!"
+  echo ""
+
+  # Display all the port mappings
+  echo "Port mappings:"
+  cat .tunnel_ports | while read mapping; do
+    IFS=':' read -r local_port server_port service <<< "$mapping"
+    echo "localhost:$local_port -> server:$server_port ($service)"
+
+    # If this is the RStudio port (first one), provide additional info
+    echo "URL: http://localhost:$local_port"
+  done
+
+  echo ""
+  echo "To manage the SSH tunnels:"
+  echo "- Start: ./start_rstudio_tunnel.sh"
+  echo "- Stop:  ./stop_rstudio_tunnel.sh"
+  echo ""
+  echo "If your connection is lost, simply run ./start_rstudio_tunnel.sh to reconnect."
+  echo "=============================="
+else
+  echo "All tunnel setup attempts failed. Please check your network and try again."
+fi
+
+# Explicitly exit the script
+exit $([ $success_count -gt 0 ] && echo 0 || echo 1)
+EOT
 
   provisioner "local-exec" {
     command = "chmod +x start_rstudio_tunnel.sh"
   }
 }
 
+# Stop script
 resource "local_file" "stop_tunnel_script" {
   filename = "stop_rstudio_tunnel.sh"
   content  = <<-EOT
-    #!/bin/bash
-    
-    # Kill any existing tunnels
-    echo "Closing SSH tunnel..."
-    pkill -f "ssh.*8787"
-    
-    # Optionally stop the VM to save costs
-    read -p "Do you want to stop the VM (${google_compute_instance.default.name}) to save costs? (y/N): " STOP_VM
-    if [[ "$STOP_VM" =~ ^[Yy]$ ]]; then
-      echo "Stopping VM ${google_compute_instance.default.name}..."
-      gcloud compute instances stop ${google_compute_instance.default.name} \
-        --project=${var.project_id} \
-        --zone=${var.zone}
-      
-      echo "VM stopped successfully."
-      echo "To start the VM and re-establish the tunnel, run:"
-      echo "Then run: ./start_rstudio_tunnel.sh"
+#!/bin/bash
+
+# Get the ports from the file if it exists
+if [ -f .tunnel_ports ]; then
+    echo "Closing SSH tunnels..."
+    cat .tunnel_ports | while read mapping; do
+        IFS=':' read -r local_port server_port service <<< "$$mapping"
+        echo "Closing SSH tunnel on port $$local_port ($$service)..."
+        pkill -f "ssh.*$$local_port" 2>/dev/null
+    done
+    # Remove the ports file
+    rm .tunnel_ports
+    # Also remove the RStudio port file if it exists
+    [ -f .rstudio_port ] && rm .rstudio_port
+else
+    # For backward compatibility, check for old ports file
+    if [ -f .rstudio_ports ]; then
+        echo "Closing SSH tunnels..."
+        cat .rstudio_ports | while read local_port; do
+            echo "Closing SSH tunnel on port $$local_port..."
+            pkill -f "ssh.*$$local_port" 2>/dev/null
+        done
+        rm .rstudio_ports
     else
-      echo "VM is still running. Tunnel closed."
-      echo "To restart the tunnel, run: ./start_rstudio_tunnel.sh"
+        # Default to killing all SSH tunnels if no port file exists
+        echo "Closing all SSH tunnels..."
+        pkill -f "ssh.*-L.*localhost" 2>/dev/null
     fi
-  EOT
+fi
+
+# Optionally stop the VM to save costs
+read -p "Do you want to stop the VM (${google_compute_instance.default.name}) to save costs? (y/N): " STOP_VM
+if [[ "$STOP_VM" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+  echo "Stopping VM ${google_compute_instance.default.name}..."
+  gcloud compute instances stop ${google_compute_instance.default.name} \
+    --project=${var.project_id} \
+    --zone=${var.zone}
+
+  echo "VM stopped successfully."
+  echo "To start the VM and re-establish the tunnels, run: ./start_rstudio_tunnel.sh"
+else
+  echo "VM is still running. Tunnels closed."
+  echo "To restart the tunnels, run: ./start_rstudio_tunnel.sh"
+fi
+EOT
 
   provisioner "local-exec" {
     command = "chmod +x stop_rstudio_tunnel.sh"
   }
-}
-
-output "username" {
-  value = var.username
-}
-
-output "password" {
-  value     = var.password
-  sensitive = true
-}
-
-output "rstudio_url" {
-  value       = "http://localhost:8787"
-  description = "Access RStudio at this URL after the tunnel is established"
-}
-
-output "tunnel_commands" {
-  value       = <<-EOT
-    Start tunnel: ./start_rstudio_tunnel.sh
-    Stop tunnel:  ./stop_rstudio_tunnel.sh
-  EOT
-  description = "Commands to manage the RStudio SSH tunnel"
 }
