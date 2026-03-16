@@ -5,3 +5,4 @@ terraform.tfstate
 terraform.tfstate.backup
 start_rstudio_tunnel.sh
 stop_rstudio_tunnel.sh
+.tunnel_ports
