@@ -8,8 +8,15 @@ This repository contains the Terraform code to launch a GCP instance.
 
 Install the following dependencies for your local machine's operating system:
 
+- [Python 3](https://www.python.org/downloads/) - Required for the helper scripts
 - [Terraform](https://www.terraform.io/downloads.html) - Infrastructure as Code tool
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) - Command line interface for Google Cloud Platform
+
+Install the required Python packages:
+
+```bash
+uv pip install google-auth
+```
 
 This is a one-time setup per local machine.
 
@@ -22,27 +29,45 @@ This is a one-time setup per local machine.
    cd vds-gcp-launch-instance
    ```
 
-2. Launch the wrapper script and answer the prompts. Press enter to accept defaults.
+2. Launch the setup script and answer the prompts. Press enter to accept defaults.
 
    ```bash
-   ./launch.sh
+   ./launch.py
    ```
 
-Once the instance is created, you can SSH into the instance using the ssh tunneling set up by the script. For images with RStudio, you can navigate to [localhost:8787](http://localhost:8787/). Your username and password are stored in ~/.env of the new instance. You can change this password with `sudo passwd {userNameHere}`.
+   This will prompt you for configuration values (project ID, VM name, image, machine type, port mappings, etc.), write them to `terraform.tfvars`, run `terraform init` and `terraform apply`, and start SSH tunnels for the configured port mappings.
 
-You will need to stop & restart the ssh tunneling as your workflow allows. You can use the following command to stop the ssh tunneling & stop the instance when you are done working.
-   ```bash
-   ./stop_rstudio_tunnel.sh
-   ```
+Once the instance is created, you can access forwarded services through the SSH tunnels. For images with RStudio, navigate to [localhost:8787](http://localhost:8787/). Your username and password are stored in `~/.env` on the new instance. You can change the password with `sudo passwd {userNameHere}`.
 
-You can restart the tunneling & the instance using the following command.
-   ```bash
-   ./start_rstudio_tunnel.sh
-   ```
+## Managing the instance
 
-You need to stop the ssh tunnleing before you destroy the instance & it's related artifacts.
+### SSH into the instance
 
-To destroy the instance and all created artifacts, run:
+To open an interactive SSH session via IAP:
+
+```bash
+./ssh.py
+```
+
+### Stop tunnels and the instance
+
+To stop the SSH tunnels and optionally stop the instance when you are done working:
+
+```bash
+./stop_tunnel.py
+```
+
+### Restart tunnels and the instance
+
+To restart the instance and re-establish the SSH tunnels:
+
+```bash
+./start_tunnel.py
+```
+
+### Destroy the instance
+
+Stop the SSH tunnels before destroying the instance. Then run:
 
 ```bash
 terraform destroy
@@ -50,7 +75,15 @@ terraform destroy
 
 Confirm the action by typing `yes`.
 
-You can also use the `terraform plan` and `terraform apply` to update the instance configuration. For example, you can change the machine type by updating the `main.tf` (or `terraform.tfvars`) file and running `terraform plan` then `terraform apply`.
+### Update instance configuration
+
+You can use `terraform plan` and `terraform apply` to update the instance configuration. For example, change the machine type or port mappings by editing `terraform.tfvars` and running `terraform plan` then `terraform apply`.
+
+Port mappings are configured as comma-separated `local:remote` pairs. For example, to forward local port 8787 to remote port 8787 and local port 9000 to remote port 9000:
+
+```
+port-mapping="8787:8787,9000:9000"
+```
 
 ## After deployment
 

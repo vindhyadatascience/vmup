@@ -1,28 +1,24 @@
 #!/usr/bin/env python3
 
-import argparse, os
+import argparse, os, subprocess
 
 parser = argparse.ArgumentParser(description = "")
 parser.add_argument("--config_file", type = str, default = "terraform.tfvars")
 args = parser.parse_args()
 
 with open(args.config_file) as f:
-	config = dict(line.strip().split("=", 1) for line in f if line.strip())
+	config = dict(line.strip().replace('"', '').split("=", 1) for line in f if line.strip())
 
-with open(".tunnel_ports", "r") as f:
-	port_pids = dict(line.strip().split("=", 1) for line in f if line.strip())
+result = subprocess.run(["pkill", "-f", f"gcloud compute ssh {config['vm-name']}"])
 
-for pid, ports in port_pids.items():
-	print(f"Terminating PID {pid} controlling tunnel from {ports}")
-	subprocess.run(["kill", pid])
-
-os.remove(".tunnel_ports")
-
-print("All SSH tunnels for this project have been closed.")
+if result.returncode == 0:
+	print("All SSH tunnels for this project have been closed.")
+else:
+	print("No active SSH tunnels found.")
 
 stop_vm = input("Would you like to stop the VM to save costs? [y/N]: ") or "N"
 
-if stop_vm is "y":
+if stop_vm == "y":
 
 	cmd = ["gcloud", "compute", "instances", "stop",
 		config["vm-name"],

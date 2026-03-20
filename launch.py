@@ -36,30 +36,19 @@ def capture_input(dict):
 	return tfvars
 
 tfvars = {}
-qedit = "y"
 
-while qedit == "y":
+while True:
 	tfvars = capture_input(tfvars)
 	print("Selected values: ")
 	pprint.pprint(tfvars, indent = 2)
 
-	qedit = input("Would you like to change any of these values? [y/N]: ") or "N"
+	confirm = input("Continue with this configuration? [y/N]: ") or "N"
+	if confirm == "y":
+		break
 
 with open("terraform.tfvars", "w") as f:
 	for key, value in tfvars.items():
 		f.write(f'{key}="{value}"\n')
-
-cmd = ["gcloud", "compute", "routers", "list", "--project", tfvars["project-id"], "--filter", "nats.sourceSubnetworkIpRangesToNat=ALL_SUBNETWORKS_ALL_IP_RANGES"]
-
-router_list = subprocess.run(cmd, capture_output = True, text = True)
-
-list_of_routers = router_list.stdout.strip().split("\n")
-for idx, info in enumerate(list_of_routers):
-	if idx > 0:
-		cmd = ["gcloud", "compute", "routers", "nats", "delete", info.split()[0]]
-		nat_cleanup = subprocess.run(cmd)
-		if nat_cleanup.returncode == 0:
-			print("Successfully cleaned up existing NAT rules")
 
 subprocess.run(["terraform", "init"])
 subprocess.run(["terraform", "apply"])

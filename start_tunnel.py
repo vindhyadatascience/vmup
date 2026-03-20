@@ -9,9 +9,6 @@ args = parser.parse_args()
 with open(args.config_file) as f:
 	config = dict(line.strip().replace('"', '').split("=", 1) for line in f if line.strip())
 
-if os.path.exists(".tunnel_ports"):
-	os.remove(".tunnel_ports")
-
 cmd = ["gcloud", "compute", "instances", "start",
 	config["vm-name"],
 	"--project", config["project-id"],
@@ -36,7 +33,7 @@ for mapping in port_mappings:
 		"--zone", config["zone"],
 		"--tunnel-through-iap",
 		"--", "-L", f"{local}:localhost:{remote}",
-		"-N", "-f"]
+		"-N"]
 
 	try:
 		process = subprocess.Popen(cmd,
@@ -46,9 +43,6 @@ for mapping in port_mappings:
 			close_fds = True)
 
 		print(f"{local}:{remote} SSH tunnel process started with PID: {process.pid}")
-
-		with open(".tunnel_ports", "a") as f:
-			f.write(f"{process.pid} = {local}:{remote}")
 
 	except Exception as e:
 		print(f"Failed to start SSH tunnel: {e}")
