@@ -28,8 +28,8 @@ fi
 read -p "Enter value for 'vm-name' (default: instance-${timestamp}): " vm_name
 vm_name=${vm_name:-instance-${timestamp}}
 
-read -p "Enter value for 'image' (default: vds-debian-12-base): " image
-image=${image:-vds-debian-12-base}
+read -p "Enter value for 'image' (options: [vds-debian-13-base, vds-debian-13-rstudio-4-5-3, vds-ubuntu-2404-lts-amd64-base, vds-ubuntu-2404-lts-amd64-rstudio-4-5-3]): " image
+image=${image:-vds-debian-13-base}
 
 read -p "Enter value for 'region' (default: us-central1): " region
 region=${region:-us-central1}
@@ -43,11 +43,13 @@ machine_type=${machine_type:-e2-highmem-2}
 read -p "Enter value for 'boot_disk_size' (default: 20GB): " boot_disk_size
 boot_disk_size=${boot_disk_size:-20}
 
-read -p "Enter comma-separated list of ports to forward (default: 8787): " server_ports
-server_ports=${server_ports:-8787}
+# Port mappings: accept local:remote pairs (e.g. "8787:8787,8080:3000").
+# A bare port number is treated as a 1:1 mapping for backward compatibility.
+read -p "Enter comma-separated port mappings as local:remote (default: 8787:8787, e.g. '8787:8787,8080:3000'): " server_ports
+server_ports=${server_ports:-8787:8787}
 
-read -p "Enter value for 'number_of_ports' (default: 1): " number_of_ports
-number_of_ports=${number_of_ports:-1}
+# Derive number_of_ports automatically from the mapping list
+number_of_ports=$(echo "$server_ports" | tr ',' '\n' | wc -l | tr -d ' ')
 
 # Write the values to a .tfvars file
 cat <<EOF > terraform.tfvars
@@ -78,19 +80,4 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# # Only display completion message if all commands succeeded
-# echo ""
-# echo "=============================="
-# echo " SETUP COMPLETE"
-# echo "=============================="
-# echo ""
-# echo "Exposed Port: http://localhost:$PORT"
-# echo ""
-# echo "To manage the SSH tunnel:"
-# echo "- Start: ./start_rstudio_tunnel.sh"
-# echo "- Stop:  ./stop_rstudio_tunnel.sh"
-# echo ""
-# echo "If your connection is lost, simply run ./start_rstudio_tunnel.sh to reconnect."
-# echo "=============================="
-# echo "Starting tunnel..."
 ./start_rstudio_tunnel.sh
