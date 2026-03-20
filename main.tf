@@ -209,8 +209,8 @@ for mapping in "$${PORT_MAPPINGS[@]}"; do
         REMOTE_PORT="$$mapping"
     fi
 
-    tunnel_index=$$((tunnel_index + 1))
-    echo "Setting up tunnel $$tunnel_index of $${#PORT_MAPPINGS[@]}: local=$$LOCAL_PORT -> remote=$$REMOTE_PORT ..."
+    tunnel_index=$$(expr $$tunnel_index + 1)
+    echo "Setting up tunnel $$tunnel_index: local=$$LOCAL_PORT -> remote=$$REMOTE_PORT ..."
 
     # Store the mapping for stop script and display
     echo "$$LOCAL_PORT:$$REMOTE_PORT" >> .tunnel_ports
@@ -228,7 +228,7 @@ for mapping in "$${PORT_MAPPINGS[@]}"; do
     tunnel_status=$$?
 
     if [ $$tunnel_status -eq 0 ]; then
-        success_count=$$((success_count + 1))
+        success_count=$$(expr $$success_count + 1)
         echo "  ✓ Tunnel established: http://localhost:$$LOCAL_PORT -> server:$$REMOTE_PORT"
     else
         echo "  ✗ Failed to establish tunnel for local port $$LOCAL_PORT. Please try again."
@@ -257,7 +257,11 @@ else
   echo "All tunnel setup attempts failed. Please check your network and try again."
 fi
 
-exit $$([ $$success_count -gt 0 ] && echo 0 || echo 1)
+if [ $$success_count -gt 0 ]; then
+  exit 0
+else
+  exit 1
+fi
 EOT
 
   provisioner "local-exec" {
