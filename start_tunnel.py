@@ -52,4 +52,4 @@ for mapping in port_mappings:
 
 	except Exception as e:
 		print(f"Failed to start SSH tunnel: {e}")
-		print("Please try running ./start_rstudio_tunnel.py.")
+		print("Please try running ./start_tunnel.py.")
