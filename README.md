@@ -59,6 +59,17 @@ make build-all      # Cross-compile for darwin/amd64, darwin/arm64, linux/amd64
 make clean          # Remove built binaries
 ```
 
+## Releasing
+
+Releases are automated via [GoReleaser](https://goreleaser.com/) and GitHub Actions. To publish a new release, tag the commit and push:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), then creates a GitHub Release with the archives attached.
+
 ## After Deployment
 
 Once the instance is created, you can access forwarded services through the SSH tunnels. For images with RStudio, navigate to [localhost:8787](http://localhost:8787/). Your username and password are displayed on the status screen after provisioning. You can change the password with `sudo passwd {userNameHere}`.
