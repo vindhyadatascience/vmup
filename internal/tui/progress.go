@@ -11,6 +11,8 @@ import (
 
 type logLineMsg string
 type progressDoneMsg struct{ err error }
+type authNeededMsg struct{ kind string }
+type authRetryMsg struct{}
 
 type progressModel struct {
 	spinner  spinner.Model
@@ -60,7 +62,7 @@ func (m progressModel) Update(msg tea.Msg) (progressModel, tea.Cmd) {
 		m.done = true
 		m.err = msg.err
 		if msg.err != nil {
-			m.lines = append(m.lines, errorStyle.Render(fmt.Sprintf("\nError: %v", msg.err)))
+			m.lines = append(m.lines, errorStyle.Width(m.viewport.Width).Render(fmt.Sprintf("\nError: %v", msg.err)))
 		} else {
 			m.lines = append(m.lines, successStyle.Render("\nDone!"))
 		}

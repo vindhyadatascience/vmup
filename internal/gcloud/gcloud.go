@@ -2,6 +2,7 @@ package gcloud
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
@@ -11,6 +12,28 @@ import (
 func IsInstalled() bool {
 	_, err := exec.LookPath("gcloud")
 	return err == nil
+}
+
+func HasAuth() bool {
+	cmd := exec.Command("gcloud", "auth", "print-access-token")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
+func HasADC() bool {
+	cmd := exec.Command("gcloud", "auth", "application-default", "print-access-token")
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
+}
+
+func AuthLoginCommand() *exec.Cmd {
+	return exec.Command("gcloud", "auth", "login")
+}
+
+func ADCLoginCommand() *exec.Cmd {
+	return exec.Command("gcloud", "auth", "application-default", "login")
 }
 
 func StartInstance(cfg config.Config) error {
