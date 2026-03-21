@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"vds-gcp-launch-instance/internal/config"
 )
@@ -28,7 +27,7 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) isAlive(proc *os.Process) bool {
-	return proc.Signal(syscall.Signal(0)) == nil
+	return isProcessAlive(proc)
 }
 
 func pidFilePath(vmName, local, remote string) string {
@@ -90,7 +89,7 @@ func (m *Manager) recoverTunnels() {
 			}
 
 			proc, err := os.FindProcess(pid)
-			if err != nil || proc.Signal(syscall.Signal(0)) != nil {
+			if err != nil || !isProcessAlive(proc) {
 				removePIDFile(pidPath)
 				continue
 			}
@@ -202,7 +201,7 @@ func (m *Manager) StopAll(vmName string) {
 	m.mu.Unlock()
 
 	// Fallback: kill any lingering gcloud ssh processes for this VM
-	_ = exec.Command("pkill", "-f", fmt.Sprintf("gcloud compute ssh %s", vmName)).Run()
+	killByName(vmName)
 }
 
 func (m *Manager) ActivePIDsForVM(vmName string) map[string]int {

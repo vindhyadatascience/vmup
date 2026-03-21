@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -109,6 +111,35 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.bgRunning {
 				a.progress, bgCmd = a.progress.Update(msg)
 			}
+		}
+	}
+
+	// Handle auth needed: suspend TUI and run gcloud auth interactively
+	if msg, ok := msg.(authNeededMsg); ok {
+		a.progress.lines = append(a.progress.lines, infoStyle.Render("Authentication required. Launching gcloud auth..."))
+		a.progress.viewport.SetContent(strings.Join(a.progress.lines, "\n"))
+		a.progress.viewport.GotoBottom()
+		var cmd *exec.Cmd
+		if msg.kind == "login" {
+			cmd = gcloud.AuthLoginCommand()
+		} else {
+			cmd = gcloud.ADCLoginCommand()
+		}
+		return a, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			if err != nil {
+				return progressDoneMsg{err: fmt.Errorf("authentication failed: %w", err)}
+			}
+			return authRetryMsg{}
+		})
+	}
+
+	// After successful auth, re-dispatch the pending operation
+	if _, ok := msg.(authRetryMsg); ok {
+		if strings.Contains(a.bgTitle, "Launching") || strings.Contains(a.bgTitle, "Updating") {
+			return a, a.cmdLaunchVM(a.activeConfig)
+		}
+		if strings.Contains(a.bgTitle, "Destroying") {
+			return a, a.cmdDestroyVM()
 		}
 	}
 
@@ -495,6 +526,15 @@ func (a App) updateVMList(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a *App) cmdLaunchVM(cfg config.Config) tea.Cmd {
 	return func() tea.Msg {
+		a.program.Send(logLineMsg("Checking GCP authentication..."))
+		if !gcloud.HasAuth() {
+			return authNeededMsg{kind: "login"}
+		}
+		if !gcloud.HasADC() {
+			return authNeededMsg{kind: "adc"}
+		}
+		a.program.Send(logLineMsg("GCP authentication verified."))
+
 		projDir := config.ProjectDir(cfg.VMName)
 
 		// Write main.tf
@@ -624,6 +664,15 @@ func (a *App) cmdDestroyVM() tea.Cmd {
 	return func() tea.Msg {
 		cfg := a.activeConfig
 		projDir := config.ProjectDir(cfg.VMName)
+
+		a.program.Send(logLineMsg("Checking GCP authentication..."))
+		if !gcloud.HasAuth() {
+			return authNeededMsg{kind: "login"}
+		}
+		if !gcloud.HasADC() {
+			return authNeededMsg{kind: "adc"}
+		}
+		a.program.Send(logLineMsg("GCP authentication verified."))
 
 		ctx := context.Background()
 		execPath, err := tf.EnsureInstalled(ctx)

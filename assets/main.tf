@@ -147,7 +147,7 @@ resource "null_resource" "restart_instance" {
 	depends_on = [google_compute_instance.default]
 
 	provisioner "local-exec" {
-		command = "gcloud config set project ${var.project-id}; gcloud compute instances reset ${google_compute_instance.default.name} --zone=${google_compute_instance.default.zone}"
+		command = "gcloud compute instances reset ${google_compute_instance.default.name} --project=${var.project-id} --zone=${google_compute_instance.default.zone}"
 	}
 }
 
