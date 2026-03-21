@@ -584,14 +584,19 @@ func (a *App) cmdLaunchVM(cfg config.Config) tea.Cmd {
 		}
 		lw.Flush()
 
-		// Start tunnels
-		a.program.Send(logLineMsg("Starting SSH tunnels..."))
-		for _, pp := range cfg.PortMappings() {
-			if err := a.tunnelMgr.StartTunnel(cfg, pp); err != nil {
-				a.program.Send(logLineMsg(fmt.Sprintf("Warning: tunnel %s:%s failed: %v", pp.Local, pp.Remote, err)))
-			} else {
-				a.program.Send(logLineMsg(fmt.Sprintf("Tunnel %s:%s started", pp.Local, pp.Remote)))
+		// Only start tunnels if the instance is running
+		status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
+		if status == "RUNNING" {
+			a.program.Send(logLineMsg("Starting SSH tunnels..."))
+			for _, pp := range cfg.PortMappings() {
+				if err := a.tunnelMgr.StartTunnel(cfg, pp); err != nil {
+					a.program.Send(logLineMsg(fmt.Sprintf("Warning: tunnel %s:%s failed: %v", pp.Local, pp.Remote, err)))
+				} else {
+					a.program.Send(logLineMsg(fmt.Sprintf("Tunnel %s:%s started", pp.Local, pp.Remote)))
+				}
 			}
+		} else {
+			a.program.Send(logLineMsg(fmt.Sprintf("Instance is %s — skipping tunnel setup.", status)))
 		}
 
 		return progressDoneMsg{err: nil}
