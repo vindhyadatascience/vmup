@@ -24,7 +24,7 @@ variable "region" {
 }
 
 variable "zone" {
-	default = "use-central1-a"
+	default = "us-central1-a"
 }
 
 variable "machine-type" {
@@ -163,10 +163,4 @@ resource "google_iap_tunnel_instance_iam_binding" "rstudio_iap_tunnel" {
 	instance = google_compute_instance.default.name
 	role     = "roles/iap.tunnelResourceAccessor"
 	members  = ["user:${var.username}@vindhyadatascience.com"]
-}
-
-resource "null_resource" "start_tunnel_script" {
-	provisioner "local-exec" {
-		command = "chmod +x ./start_tunnel.py && ./start_tunnel.py"
-	}
 }
