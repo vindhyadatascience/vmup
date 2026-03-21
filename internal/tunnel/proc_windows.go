@@ -5,6 +5,7 @@ package tunnel
 import (
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 )
 
@@ -27,6 +28,15 @@ func isProcessAlive(proc *os.Process) bool {
 		return false
 	}
 	return exitCode == STILL_ACTIVE
+}
+
+func killProcessTree(proc *os.Process) error {
+	// taskkill /F /T kills the process and all its descendants.
+	err := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(proc.Pid)).Run()
+	if err != nil {
+		return proc.Kill()
+	}
+	return nil
 }
 
 func killByName(vmName string) {

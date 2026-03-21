@@ -165,6 +165,9 @@ func (m *Manager) StartTunnel(cfg config.Config, pp config.PortPair) error {
 		return fmt.Errorf("start tunnel %s:%s: %w", pp.Local, pp.Remote, err)
 	}
 
+	// Reap the child process when it exits to prevent zombies.
+	go cmd.Wait()
+
 	key := fmt.Sprintf("%s:%s", pp.Local, pp.Remote)
 	m.mu.Lock()
 	if m.processes[cfg.VMName] == nil {
@@ -192,7 +195,7 @@ func (m *Manager) StopAll(vmName string) {
 	m.mu.Lock()
 	if tunnels, ok := m.processes[vmName]; ok {
 		for key, proc := range tunnels {
-			_ = proc.Kill()
+			_ = killProcessTree(proc)
 			m.removeStalePID(vmName, key)
 			delete(tunnels, key)
 		}
