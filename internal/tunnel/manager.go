@@ -160,7 +160,7 @@ func (m *Manager) StartTunnel(cfg config.Config, pp config.PortPair) error {
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setSysProcAttr(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start tunnel %s:%s: %w", pp.Local, pp.Remote, err)

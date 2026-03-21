@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, python]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build (all platforms)
+        run: |
+          GOOS=darwin  GOARCH=amd64 go build -o /dev/null .
+          GOOS=darwin  GOARCH=arm64 go build -o /dev/null .
+          GOOS=linux   GOARCH=amd64 go build -o /dev/null .
+          GOOS=linux   GOARCH=arm64 go build -o /dev/null .
+          GOOS=windows GOARCH=amd64 go build -o /dev/null .
+
+      - name: Vet
+        run: go vet ./...
