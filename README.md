@@ -1,60 +1,78 @@
-# Launch a GCP instance with Terraform
+# vmup - GCP Instance Manager
 
-Terraform is a tool for building, changing, and versioning infrastructure safely and efficiently.
+A single-binary TUI app for launching and managing GCP compute instances with Terraform, SSH tunneling via IAP, and interactive terminal UI.
 
-This repository contains the Terraform code to launch a GCP instance.
+## Prerequisites
 
-## Dependencies
+- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud` CLI) - Required for IAP SSH tunneling
 
-Install the following dependencies for your local machine's operating system:
+That's it. Terraform is auto-installed on first run.
 
-- [Terraform](https://www.terraform.io/downloads.html) - Infrastructure as Code tool
-- [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) - Command line interface for Google Cloud Platform
+## Quick Start
 
-This is a one-time setup per local machine.
-
-## Deploying a VM
-
-1. Open a terminal on your local machine and clone this repository:
+1. Clone this repository:
 
    ```bash
    git clone https://github.com/vindhyadatascience/vds-gcp-launch-instance.git
    cd vds-gcp-launch-instance
    ```
 
-2. Launch the wrapper script and answer the prompts. Press enter to accept defaults.
+2. Build and run:
 
    ```bash
-   ./launch.sh
+   make run
    ```
 
-Once the instance is created, you can SSH into the instance using the ssh tunneling set up by the script. For images with RStudio, you can navigate to [localhost:8787](http://localhost:8787/). Your username and password are stored in ~/.env of the new instance. You can change this password with `sudo passwd {userNameHere}`.
+   Or build separately:
 
-You will need to stop & restart the ssh tunneling as your workflow allows. You can use the following command to stop the ssh tunneling & stop the instance when you are done working.
    ```bash
-   ./stop_rstudio_tunnel.sh
+   make build
+   ./vmup
    ```
 
-You can restart the tunneling & the instance using the following command.
-   ```bash
-   ./start_rstudio_tunnel.sh
-   ```
+## Usage
 
-You need to stop the ssh tunnleing before you destroy the instance & it's related artifacts.
+The TUI presents a menu with the following options:
 
-To destroy the instance and all created artifacts, run:
+- **Launch New VM** - Configure and provision a new GCP instance. Fill out the form (project ID, VM name, image, machine type, port mappings, etc.), then Terraform runs `init` and `apply` with streaming output. SSH tunnels start automatically after provisioning.
+
+- **Start Tunnels** - Start a stopped VM and re-establish SSH tunnels for the configured port mappings.
+
+- **Stop Tunnels** - Close SSH tunnels and optionally stop the VM to save costs.
+
+- **SSH Session** - Open an interactive SSH session via IAP. The TUI suspends while SSH is active and resumes on exit.
+
+- **Destroy VM** - Tear down all resources with `terraform destroy` and clean up the project directory.
+
+## How It Works
+
+- Project state is stored in `~/.vmup/projects/<vm-name>/` (terraform.tfvars, .terraform/, terraform.tfstate)
+- Terraform binary is auto-downloaded to `~/.vmup/bin/` on first run via [hc-install](https://github.com/hashicorp/hc-install)
+- The Terraform config (`main.tf`) is embedded in the binary via `go:embed`
+- SSH tunnels use `gcloud compute ssh` with IAP tunneling (`--tunnel-through-iap`)
+
+## Building
 
 ```bash
-terraform destroy
+make build          # Build for current platform
+make build-all      # Cross-compile for darwin/amd64, darwin/arm64, linux/amd64
+make clean          # Remove built binaries
 ```
 
-Confirm the action by typing `yes`.
+## Releasing
 
-You can also use the `terraform plan` and `terraform apply` to update the instance configuration. For example, you can change the machine type by updating the `main.tf` (or `terraform.tfvars`) file and running `terraform plan` then `terraform apply`.
+Releases are automated via [GoReleaser](https://goreleaser.com/) and GitHub Actions. To publish a new release, tag the commit and push:
 
-## After deployment
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
-After deploying the instance, you can follow these instructions to customize your environment:
+This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), then creates a GitHub Release with the archives attached.
+
+## After Deployment
+
+Once the instance is created, you can access forwarded services through the SSH tunnels. For images with RStudio, navigate to [localhost:8787](http://localhost:8787/). Your username and password are displayed on the status screen after provisioning. You can change the password with `sudo passwd {userNameHere}`.
 
 ### Adding git credentials
 
@@ -64,18 +82,10 @@ Use the GitHub CLI to authenticate with GitHub:
 gh auth login
 ```
 
-### Authenticating Docker to GitHub Container Registry.
+### Authenticating Docker to GitHub Container Registry
 
 Create a classic Personal Access Token (PAT) from GitHub (https://github.com/settings/tokens) with the `read:packages` scope selected, save it to a file called `~/.ghcr_token` and authenticate to the `ghcr.io` registry using the following command:
 
 ```bash
 cat ~/.ghcr_token | docker login ghcr.io -u <username> --password-stdin
-```
-
-### Cloning a repository
-
-Clone a repository using the following command:
-
-```bash
-git clone <repository>
 ```
