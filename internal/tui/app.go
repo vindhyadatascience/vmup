@@ -228,7 +228,6 @@ func (a App) dispatchAction(action menuAction) (tea.Model, tea.Cmd) {
 
 	case actionStopAll:
 		a.confirmValue = new(bool)
-		*a.confirmValue = true
 		a.confirmForm = huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().
@@ -390,7 +389,7 @@ func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmDestroy() string {
-	return titleStyle.Render("Destroy VM") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Destroy VM") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // --- Confirm Stop VM ---
@@ -430,7 +429,7 @@ func (a App) updateConfirmStopVM(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmStopVM() string {
-	return titleStyle.Render("Stop Tunnels") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Stop Tunnels") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // --- Confirm Stop All ---
@@ -465,7 +464,7 @@ func (a App) updateConfirmStopAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmStopAll() string {
-	return titleStyle.Render("Stop All") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Stop All") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // refreshVMList switches to the VM list screen and triggers a background

@@ -191,5 +191,5 @@ func (m configModel) View() string {
 	if m.isEdit {
 		title = fmt.Sprintf("Edit VM: %s", m.cfg.VMName)
 	}
-	return titleStyle.Render(title) + "\n\n" + m.form.View()
+	return titleStyle.Render(title) + "\n\n" + m.form.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
