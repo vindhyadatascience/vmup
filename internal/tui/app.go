@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -587,6 +588,13 @@ func (a *App) cmdLaunchVM(cfg config.Config) tea.Cmd {
 		// Only start tunnels if the instance is running
 		status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
 		if status == "RUNNING" {
+			a.program.Send(logLineMsg("Waiting for SSH to become available..."))
+			if err := gcloud.WaitForSSH(cfg, 120*time.Second, func(attempt int, elapsed time.Duration) {
+				a.program.Send(logLineMsg(fmt.Sprintf("  SSH not ready yet (attempt %d, %.0fs elapsed), retrying...", attempt, elapsed.Seconds())))
+			}); err != nil {
+				a.program.Send(logLineMsg(fmt.Sprintf("Warning: SSH readiness check failed: %v", err)))
+				a.program.Send(logLineMsg("Attempting tunnels anyway..."))
+			}
 			a.program.Send(logLineMsg("Starting SSH tunnels..."))
 			for _, pp := range cfg.PortMappings() {
 				if err := a.tunnelMgr.StartTunnel(cfg, pp); err != nil {
@@ -607,11 +615,27 @@ func (a *App) cmdStartTunnels() tea.Cmd {
 	return func() tea.Msg {
 		cfg := a.activeConfig
 
-		a.program.Send(logLineMsg("Starting instance..."))
-		if err := gcloud.StartInstance(cfg); err != nil {
-			return progressDoneMsg{err: err}
+		status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
+
+		if status != "RUNNING" {
+			a.program.Send(logLineMsg("Starting instance..."))
+			if err := gcloud.StartInstance(cfg); err != nil {
+				return progressDoneMsg{err: err}
+			}
+			a.program.Send(logLineMsg("Instance started."))
 		}
-		a.program.Send(logLineMsg("Instance started."))
+
+		sshTimeout := 120 * time.Second
+		if status == "RUNNING" {
+			sshTimeout = 30 * time.Second
+		}
+		a.program.Send(logLineMsg("Waiting for SSH to become available..."))
+		if err := gcloud.WaitForSSH(cfg, sshTimeout, func(attempt int, elapsed time.Duration) {
+			a.program.Send(logLineMsg(fmt.Sprintf("  SSH not ready yet (attempt %d, %.0fs elapsed), retrying...", attempt, elapsed.Seconds())))
+		}); err != nil {
+			return progressDoneMsg{err: fmt.Errorf("SSH not available: %w", err)}
+		}
+		a.program.Send(logLineMsg("SSH is ready."))
 
 		a.program.Send(logLineMsg("Starting SSH tunnels..."))
 		for _, pp := range cfg.PortMappings() {
