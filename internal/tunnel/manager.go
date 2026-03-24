@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"vds-gcp-launch-instance/internal/config"
 )
@@ -163,6 +164,21 @@ func (m *Manager) StartTunnel(cfg config.Config, pp config.PortPair) error {
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start tunnel %s:%s: %w", pp.Local, pp.Remote, err)
+	}
+
+	// Verify the tunnel process stays alive and binds the local port.
+	// This catches immediate failures (auth errors, connection refused).
+	const verifyChecks = 10
+	const verifyInterval = 500 * time.Millisecond
+	for i := 0; i < verifyChecks; i++ {
+		time.Sleep(verifyInterval)
+		if !isProcessAlive(cmd.Process) {
+			go cmd.Wait() // reap
+			return fmt.Errorf("tunnel %s:%s process exited prematurely", pp.Local, pp.Remote)
+		}
+		if isPortBound(pp.Local) {
+			break
+		}
 	}
 
 	// Reap the child process when it exits to prevent zombies.
