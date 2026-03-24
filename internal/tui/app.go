@@ -299,6 +299,18 @@ func (a App) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.(tea.KeyMsg).String()
 
+		if key == "ctrl+c" {
+			if a.progress.done {
+				if a.progress.title == "Destroying VM..." && a.progress.err == nil {
+					a.activeConfig = config.Config{}
+				}
+				a, cmd = a.refreshVMList()
+				return a, cmd
+			}
+			a.screen = screenVMList
+			return a, a.progress.spinner.Tick
+		}
+
 		// Allow esc to return to VM list while operation runs in background
 		if key == "esc" && !a.progress.done {
 			a.screen = screenVMList
@@ -350,7 +362,7 @@ func (a App) updateStatus(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
@@ -386,7 +398,7 @@ func (a App) viewConfirmDestroy() string {
 func (a App) updateConfirmStopVM(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
@@ -426,7 +438,7 @@ func (a App) viewConfirmStopVM() string {
 func (a App) updateConfirmStopAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
