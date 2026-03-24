@@ -31,9 +31,9 @@ func (m statusModel) Update(msg tea.Msg) (statusModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "enter", "b", "esc":
+		case "enter", "b", "esc", "ctrl+c":
 			return m, func() tea.Msg { return backToMenuMsg{} }
-		case "q", "ctrl+c":
+		case "q":
 			return m, tea.Quit
 		}
 	}
@@ -81,7 +81,7 @@ func (m statusModel) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("Press enter or b to return to menu"))
+	b.WriteString(dimStyle.Render("enter/b/esc/ctrl+c back • q quit"))
 
 	return b.String()
 }

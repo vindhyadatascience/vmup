@@ -103,9 +103,9 @@ func (m progressModel) View() string {
 
 	b.WriteString("\n")
 	if m.done {
-		b.WriteString(dimStyle.Render("Press enter to continue"))
+		b.WriteString(dimStyle.Render("Press enter to continue • ctrl+c back"))
 	} else {
-		b.WriteString(dimStyle.Render("esc back"))
+		b.WriteString(dimStyle.Render("esc/ctrl+c back"))
 	}
 
 	return b.String()

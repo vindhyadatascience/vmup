@@ -107,7 +107,7 @@ func (m configModel) Init() tea.Cmd {
 func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			return m, func() tea.Msg { return configCancelMsg{} }
 		}
 	}
@@ -178,5 +178,5 @@ func (m configModel) View() string {
 	if m.isEdit {
 		title = fmt.Sprintf("Edit VM: %s", m.cfg.VMName)
 	}
-	return titleStyle.Render(title) + "\n\n" + m.form.View()
+	return titleStyle.Render(title) + "\n\n" + m.form.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }

@@ -228,7 +228,6 @@ func (a App) dispatchAction(action menuAction) (tea.Model, tea.Cmd) {
 
 	case actionStopAll:
 		a.confirmValue = new(bool)
-		*a.confirmValue = true
 		a.confirmForm = huh.NewForm(
 			huh.NewGroup(
 				huh.NewConfirm().
@@ -299,6 +298,18 @@ func (a App) updateProgress(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		key := msg.(tea.KeyMsg).String()
 
+		if key == "ctrl+c" {
+			if a.progress.done {
+				if a.progress.title == "Destroying VM..." && a.progress.err == nil {
+					a.activeConfig = config.Config{}
+				}
+				a, cmd = a.refreshVMList()
+				return a, cmd
+			}
+			a.screen = screenVMList
+			return a, a.progress.spinner.Tick
+		}
+
 		// Allow esc to return to VM list while operation runs in background
 		if key == "esc" && !a.progress.done {
 			a.screen = screenVMList
@@ -350,7 +361,7 @@ func (a App) updateStatus(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
@@ -378,7 +389,7 @@ func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmDestroy() string {
-	return titleStyle.Render("Destroy VM") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Destroy VM") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // --- Confirm Stop VM ---
@@ -386,7 +397,7 @@ func (a App) viewConfirmDestroy() string {
 func (a App) updateConfirmStopVM(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
@@ -418,7 +429,7 @@ func (a App) updateConfirmStopVM(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmStopVM() string {
-	return titleStyle.Render("Stop Tunnels") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Stop Tunnels") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // --- Confirm Stop All ---
@@ -426,7 +437,7 @@ func (a App) viewConfirmStopVM() string {
 func (a App) updateConfirmStopAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "esc" {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
 			a.screen = screenVMList
 			return a, nil
 		}
@@ -453,7 +464,7 @@ func (a App) updateConfirmStopAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) viewConfirmStopAll() string {
-	return titleStyle.Render("Stop All") + "\n\n" + a.confirmForm.View()
+	return titleStyle.Render("Stop All") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // refreshVMList switches to the VM list screen and triggers a background
