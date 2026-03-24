@@ -64,8 +64,9 @@ resource "google_compute_subnetwork" "instance_subnet" {
 }
 
 resource "google_compute_instance" "default" {
-	name = var.vm-name
-	machine_type = var.machine-type
+	name                      = var.vm-name
+	machine_type              = var.machine-type
+	allow_stopping_for_update = true
 
 	boot_disk {
 		auto_delete = true

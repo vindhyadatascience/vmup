@@ -134,35 +134,22 @@ func newEditConfigModel(cfg config.Config) configModel {
 	m.form = huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
+				Title("Locked Settings").
+				Description(fmt.Sprintf(
+					"Project ID:  %s\nImage:       %s\nRegion:      %s\nZone:        %s\n\nThese settings cannot be changed because\nmodifying them would destroy and recreate the VM.",
+					cfg.ProjectID, cfg.Image, cfg.Region, cfg.Zone,
+				)).
+				Next(true).
+				NextLabel("Continue"),
+		),
+		huh.NewGroup(
+			huh.NewNote().
 				Title("VM Name").
 				Description(cfg.VMName),
 			huh.NewInput().
 				Title("Username").
 				Description("GCP username (part before @ in email)").
 				Value(&m.cfg.Username),
-			huh.NewInput().
-				Title("Project ID").
-				Description("GCP project to create the instance in").
-				Value(&m.cfg.ProjectID),
-		),
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Image").
-				Options(
-					huh.NewOption("vds-debian-13-base", "vds-debian-13-base"),
-					huh.NewOption("vds-debian-13-rstudio-4-5-3", "vds-debian-13-rstudio-4-5-3"),
-					huh.NewOption("vds-ubuntu-2404-lts-amd64-base", "vds-ubuntu-2404-lts-amd64-base"),
-					huh.NewOption("vds-ubuntu-2404-lts-amd64-rstudio-4-5-3", "vds-ubuntu-2404-lts-amd64-rstudio-4-5-3"),
-				).
-				Value(&m.cfg.Image),
-			huh.NewInput().
-				Title("Region").
-				Value(&m.cfg.Region),
-			huh.NewInput().
-				Title("Zone").
-				Value(&m.cfg.Zone),
-		),
-		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Machine Type").
 				Options(
