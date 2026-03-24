@@ -8,6 +8,7 @@ const (
 	screenProgress
 	screenStatus
 	screenConfirmDestroy
+	screenConfirmDestroyName
 	screenConfirmStopVM
 	screenConfirmStopAll
 )
