@@ -40,8 +40,9 @@ type App struct {
 	editMode bool
 
 	// For confirmation prompts
-	confirmForm  *huh.Form
-	confirmValue *bool
+	confirmForm      *huh.Form
+	confirmValue     *bool
+	confirmNameValue *string
 
 	width, height int
 }
@@ -157,6 +158,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd = a.updateStatus(msg)
 	case screenConfirmDestroy:
 		model, cmd = a.updateConfirmDestroy(msg)
+	case screenConfirmDestroyName:
+		model, cmd = a.updateConfirmDestroyName(msg)
 	case screenConfirmStopVM:
 		model, cmd = a.updateConfirmStopVM(msg)
 	case screenConfirmStopAll:
@@ -183,6 +186,8 @@ func (a App) View() string {
 		return a.status.View()
 	case screenConfirmDestroy:
 		return a.viewConfirmDestroy()
+	case screenConfirmDestroyName:
+		return a.viewConfirmDestroyName()
 	case screenConfirmStopVM:
 		return a.viewConfirmStopVM()
 	case screenConfirmStopAll:
@@ -374,12 +379,25 @@ func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if a.confirmForm.State == huh.StateCompleted {
 		if *a.confirmValue {
-			a.tunnelMgr.StopAll(a.activeConfig.VMName)
-			a.bgRunning = true
-			a.bgTitle = "Destroying VM..."
-			a.progress = newProgressModel("Destroying VM...")
-			a.screen = screenProgress
-			return a, tea.Batch(a.progress.Init(), a.cmdDestroyVM())
+			// Transition to name confirmation screen
+			a.confirmNameValue = new(string)
+			vmName := a.activeConfig.VMName
+			a.confirmForm = huh.NewForm(
+				huh.NewGroup(
+					huh.NewInput().
+						Title(fmt.Sprintf("Type '%s' to confirm destruction", vmName)).
+						Description("This cannot be undone.").
+						Value(a.confirmNameValue).
+						Validate(func(s string) error {
+							if s != vmName {
+								return fmt.Errorf("name does not match")
+							}
+							return nil
+						}),
+				),
+			)
+			a.screen = screenConfirmDestroyName
+			return a, a.confirmForm.Init()
 		}
 		a.screen = screenVMList
 		return a, nil
@@ -390,6 +408,38 @@ func (a App) updateConfirmDestroy(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) viewConfirmDestroy() string {
 	return titleStyle.Render("Destroy VM") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
+}
+
+// --- Confirm Destroy Name ---
+
+func (a App) updateConfirmDestroyName(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
+			a.screen = screenVMList
+			return a, nil
+		}
+	}
+
+	form, cmd := a.confirmForm.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		a.confirmForm = f
+	}
+
+	if a.confirmForm.State == huh.StateCompleted {
+		a.tunnelMgr.StopAll(a.activeConfig.VMName)
+		a.bgRunning = true
+		a.bgTitle = "Destroying VM..."
+		a.progress = newProgressModel("Destroying VM...")
+		a.screen = screenProgress
+		return a, tea.Batch(a.progress.Init(), a.cmdDestroyVM())
+	}
+
+	return a, cmd
+}
+
+func (a App) viewConfirmDestroyName() string {
+	return titleStyle.Render("Confirm Destroy") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
 }
 
 // --- Confirm Stop VM ---
