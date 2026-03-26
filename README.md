@@ -14,6 +14,14 @@ That's it. Terraform is auto-installed on first run.
 
 **Using GitHub CLI (recommended):**
 
+First, install the [GitHub CLI](https://cli.github.com) and authenticate:
+
+```bash
+gh auth login
+```
+
+Then install vmup:
+
 ```bash
 curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
   https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
@@ -30,6 +38,14 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 ### Windows (PowerShell)
 
 **Using GitHub CLI (recommended):**
+
+First, install the [GitHub CLI](https://cli.github.com) and authenticate:
+
+```powershell
+gh auth login
+```
+
+Then install vmup:
 
 ```powershell
 & { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $h) }
