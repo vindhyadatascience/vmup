@@ -111,9 +111,11 @@ try {
     }
 
     Write-Host ""
-    Write-Host "  Prerequisites: Google Cloud SDK (gcloud CLI) must be installed."
-    Write-Host "  Install it from: https://cloud.google.com/sdk/docs/install"
-    Write-Host ""
+    if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
+        Write-Host "  Prerequisites: Google Cloud SDK (gcloud CLI) must be installed."
+        Write-Host "  Install it from: https://cloud.google.com/sdk/docs/install"
+        Write-Host ""
+    }
     Write-Host "  Run '$Binary' to get started."
     Write-Host "  Note: You may need to restart your terminal for PATH changes to take effect."
 } finally {

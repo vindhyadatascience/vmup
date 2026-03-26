@@ -15,15 +15,16 @@ That's it. Terraform is auto-installed on first run.
 **Using GitHub CLI (recommended):**
 
 ```bash
-gh api repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.sh -H 'Accept: application/vnd.github.raw' > install.sh && sh install.sh && rm install.sh
+curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
 ```
 
 **Using a GitHub token:**
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
-  "https://api.github.com/repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.sh" | sh
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
 ```
 
 ### Windows (PowerShell)
@@ -31,16 +32,15 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
 **Using GitHub CLI (recommended):**
 
 ```powershell
-gh api repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.ps1 -H 'Accept: application/vnd.github.raw' > install.ps1; .\install.ps1; Remove-Item install.ps1
+& { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $h) }
 ```
 
 **Using a GitHub token:**
 
 ```powershell
 $env:GITHUB_TOKEN = "ghp_your_token_here"
-$headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN"; Accept = "application/vnd.github.raw" }
-$script = Invoke-RestMethod -Uri "https://api.github.com/repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.ps1" -Headers $headers
-Invoke-Expression $script
+$headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $headers)
 ```
 
 ### From source

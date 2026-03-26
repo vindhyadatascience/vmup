@@ -150,7 +150,9 @@ else
 fi
 
 echo ""
-echo "  Prerequisites: Google Cloud SDK (gcloud CLI) must be installed."
-echo "  Install it from: https://cloud.google.com/sdk/docs/install"
-echo ""
+if ! command -v gcloud >/dev/null 2>&1; then
+    echo "  Prerequisites: Google Cloud SDK (gcloud CLI) must be installed."
+    echo "  Install it from: https://cloud.google.com/sdk/docs/install"
+    echo ""
+fi
 echo "  Run '${BINARY}' to get started."
