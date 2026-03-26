@@ -15,15 +15,15 @@ That's it. Terraform is auto-installed on first run.
 **Using GitHub CLI (recommended):**
 
 ```bash
-gh release download --repo vindhyadatascience/vds-gcp-launch-instance --pattern 'install.sh' --output install.sh && sh install.sh && rm install.sh
+gh api repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.sh -H 'Accept: application/vnd.github.raw' > install.sh && sh install.sh && rm install.sh
 ```
 
 **Using a GitHub token:**
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  "https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh" | sh
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
+  "https://api.github.com/repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.sh" | sh
 ```
 
 ### Windows (PowerShell)
@@ -31,14 +31,15 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 **Using GitHub CLI (recommended):**
 
 ```powershell
-gh release download --repo vindhyadatascience/vds-gcp-launch-instance --pattern 'install.ps1' --output install.ps1; .\install.ps1; Remove-Item install.ps1
+gh api repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.ps1 -H 'Accept: application/vnd.github.raw' > install.ps1; .\install.ps1; Remove-Item install.ps1
 ```
 
 **Using a GitHub token:**
 
 ```powershell
 $env:GITHUB_TOKEN = "ghp_your_token_here"
-$script = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1" -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+$headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN"; Accept = "application/vnd.github.raw" }
+$script = Invoke-RestMethod -Uri "https://api.github.com/repos/vindhyadatascience/vds-gcp-launch-instance/contents/install.ps1" -Headers $headers
 Invoke-Expression $script
 ```
 
