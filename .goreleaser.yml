@@ -18,4 +18,4 @@ builds:
 archives:
   - formats:
       - tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "vmup_{{ .Os }}_{{ .Arch }}"
