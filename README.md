@@ -8,7 +8,27 @@ A single-binary TUI app for launching and managing GCP compute instances with Te
 
 That's it. Terraform is auto-installed on first run.
 
-## Quick Start
+## Installation
+
+### macOS / Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+```
+
+Or with `wget`:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 | iex
+```
+
+### From source
 
 1. Clone this repository:
 
