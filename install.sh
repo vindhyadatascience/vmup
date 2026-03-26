@@ -40,32 +40,63 @@ case "$ARCH" in
     *) error "Unsupported architecture: $ARCH" ;;
 esac
 
-# Detect download tool
-if command -v curl >/dev/null 2>&1; then
-    fetch() { curl -fsSL "$1"; }
-    download() { curl -fsSL -o "$2" "$1"; }
-elif command -v wget >/dev/null 2>&1; then
-    fetch() { wget -qO- "$1"; }
-    download() { wget -qO "$2" "$1"; }
+# Detect auth method
+USE_GH=false
+USE_TOKEN=false
+
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    USE_GH=true
+elif [ -n "$GITHUB_TOKEN" ]; then
+    USE_TOKEN=true
 else
-    error "curl or wget is required but neither was found."
+    error "This is a private repository. Install requires one of:
+  1. GitHub CLI (gh) — install from https://cli.github.com then run 'gh auth login'
+  2. GITHUB_TOKEN environment variable — export GITHUB_TOKEN=ghp_... before running this script"
 fi
-
-# Get latest release tag
-info "Fetching latest release..."
-TAG=$(fetch "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
-if [ -z "$TAG" ]; then
-    error "Could not determine latest release. Check your internet connection."
-fi
-info "Latest release: ${TAG}"
-
-# Download archive
-ARCHIVE="${BINARY}_${OS}_${ARCH}.tar.gz"
-URL="https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE}"
 
 TMPDIR=$(mktemp -d)
-info "Downloading ${ARCHIVE}..."
-download "$URL" "${TMPDIR}/${ARCHIVE}"
+ARCHIVE="${BINARY}_${OS}_${ARCH}.tar.gz"
+
+if [ "$USE_GH" = true ]; then
+    # Use gh CLI (handles private repo auth automatically)
+    info "Fetching latest release via gh CLI..."
+    TAG=$(gh release view --repo "$REPO" --json tagName -q '.tagName')
+    if [ -z "$TAG" ]; then
+        error "Could not determine latest release."
+    fi
+    info "Latest release: ${TAG}"
+
+    info "Downloading ${ARCHIVE}..."
+    gh release download "$TAG" --repo "$REPO" --pattern "$ARCHIVE" --dir "$TMPDIR"
+else
+    # Use GITHUB_TOKEN with curl/wget
+    if command -v curl >/dev/null 2>&1; then
+        api_fetch() { curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$1"; }
+        api_download() { curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/octet-stream" -o "$2" "$1"; }
+    elif command -v wget >/dev/null 2>&1; then
+        api_fetch() { wget -qO- --header="Authorization: Bearer $GITHUB_TOKEN" "$1"; }
+        api_download() { wget -qO "$2" --header="Authorization: Bearer $GITHUB_TOKEN" --header="Accept: application/octet-stream" "$1"; }
+    else
+        error "curl or wget is required but neither was found."
+    fi
+
+    info "Fetching latest release via GitHub API..."
+    RELEASE_JSON=$(api_fetch "https://api.github.com/repos/${REPO}/releases/latest")
+    TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+    if [ -z "$TAG" ]; then
+        error "Could not determine latest release. Check your GITHUB_TOKEN permissions."
+    fi
+    info "Latest release: ${TAG}"
+
+    # Find the asset ID for our archive
+    ASSET_ID=$(echo "$RELEASE_JSON" | grep -B 3 "\"name\": *\"${ARCHIVE}\"" | grep '"id"' | head -1 | sed -E 's/.*"id": *([0-9]+).*/\1/')
+    if [ -z "$ASSET_ID" ]; then
+        error "Asset '${ARCHIVE}' not found in release ${TAG}."
+    fi
+
+    info "Downloading ${ARCHIVE}..."
+    api_download "https://api.github.com/repos/${REPO}/releases/assets/${ASSET_ID}" "${TMPDIR}/${ARCHIVE}"
+fi
 
 # Extract
 info "Extracting..."

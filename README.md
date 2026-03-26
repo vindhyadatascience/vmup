@@ -12,20 +12,34 @@ That's it. Terraform is auto-installed on first run.
 
 ### macOS / Linux
 
+**Using GitHub CLI (recommended):**
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+gh release download --repo vindhyadatascience/vds-gcp-launch-instance --pattern 'install.sh' --output install.sh && sh install.sh && rm install.sh
 ```
 
-Or with `wget`:
+**Using a GitHub token:**
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+export GITHUB_TOKEN=ghp_your_token_here
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  "https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh" | sh
 ```
 
 ### Windows (PowerShell)
 
+**Using GitHub CLI (recommended):**
+
 ```powershell
-irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 | iex
+gh release download --repo vindhyadatascience/vds-gcp-launch-instance --pattern 'install.ps1' --output install.ps1; .\install.ps1; Remove-Item install.ps1
+```
+
+**Using a GitHub token:**
+
+```powershell
+$env:GITHUB_TOKEN = "ghp_your_token_here"
+$script = Invoke-RestMethod -Uri "https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1" -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+Invoke-Expression $script
 ```
 
 ### From source
