@@ -308,7 +308,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 // --- Layout helpers ---
 
 type diskColumnWidths struct {
-	name, size, zone, diskType, status, attached int
+	name, project, size, zone, diskType, status, attached int
 }
 
 func calcDiskColumnWidths(totalWidth int) diskColumnWidths {
@@ -317,13 +317,14 @@ func calcDiskColumnWidths(totalWidth int) diskColumnWidths {
 		avail = 60
 	}
 	cw := diskColumnWidths{
-		name:     max(avail*25/100, 14),
-		size:     max(avail*8/100, 7),
-		zone:     max(avail*18/100, 10),
-		diskType: max(avail*14/100, 10),
-		status:   max(avail*12/100, 8),
+		name:     max(avail*20/100, 14),
+		project:  max(avail*16/100, 10),
+		size:     max(avail*7/100, 7),
+		zone:     max(avail*15/100, 10),
+		diskType: max(avail*11/100, 10),
+		status:   max(avail*10/100, 8),
 	}
-	cw.attached = avail - cw.name - cw.size - cw.zone - cw.diskType - cw.status
+	cw.attached = avail - cw.name - cw.project - cw.size - cw.zone - cw.diskType - cw.status
 	if cw.attached < 10 {
 		cw.attached = 10
 	}
@@ -420,6 +421,7 @@ func (m diskListModel) viewTable() string {
 	cw := calcDiskColumnWidths(w)
 
 	sName := lipgloss.NewStyle().Width(cw.name).Foreground(lipgloss.Color("255"))
+	sProject := lipgloss.NewStyle().Width(cw.project).Foreground(lipgloss.Color("255"))
 	sSize := lipgloss.NewStyle().Width(cw.size).Foreground(lipgloss.Color("255"))
 	sZone := lipgloss.NewStyle().Width(cw.zone).Foreground(lipgloss.Color("255"))
 	sType := lipgloss.NewStyle().Width(cw.diskType).Foreground(lipgloss.Color("255"))
@@ -429,8 +431,9 @@ func (m diskListModel) viewTable() string {
 	sep := dimStyle.Render(strings.Repeat("─", w))
 
 	// Header
-	header := fmt.Sprintf("  %s%s%s%s%s%s",
+	header := fmt.Sprintf("  %s%s%s%s%s%s%s",
 		headerStyle.Render(sName.Render("Disk Name")),
+		headerStyle.Render(sProject.Render("Project")),
 		headerStyle.Render(sSize.Render("Size")),
 		headerStyle.Render(sZone.Render("Zone")),
 		headerStyle.Render(sType.Render("Type")),
@@ -460,6 +463,7 @@ func (m diskListModel) viewTable() string {
 		}
 
 		name := sName.Render(truncate(disk.cfg.Name, cw.name-2))
+		project := sProject.Render(truncate(disk.cfg.ProjectID, cw.project-2))
 		size := sSize.Render(disk.cfg.SizeGB + " GB")
 		zone := sZone.Render(truncate(disk.cfg.Zone, cw.zone-2))
 		diskType := sType.Render(truncate(disk.cfg.DiskType, cw.diskType-2))
@@ -471,7 +475,7 @@ func (m diskListModel) viewTable() string {
 		}
 		attached := sAttached.Render(truncate(attachedTo, cw.attached-2))
 
-		row := fmt.Sprintf("%s%s%s%s%s%s%s", cursor, name, size, zone, diskType, status, attached)
+		row := fmt.Sprintf("%s%s%s%s%s%s%s%s", cursor, name, project, size, zone, diskType, status, attached)
 		if i == m.cursor {
 			row = rowSelected.Render(row)
 		}
@@ -490,7 +494,6 @@ func (m diskListModel) viewTable() string {
 			b.WriteString(statusKeyStyle.Render(k) + statusValStyle.Render(v) + "\n")
 		}
 		detail("Disk Name:", disk.cfg.Name)
-		detail("Project:", disk.cfg.ProjectID)
 		detail("Zone:", disk.cfg.Zone)
 		detail("Type:", disk.cfg.DiskType)
 		if disk.status.SizeGB != "" {
@@ -556,12 +559,12 @@ func (m diskListModel) viewCards() string {
 		if disk.status.SizeGB != "" {
 			sizeGB = disk.status.SizeGB
 		}
+		b.WriteString(indent + cardLabel.Render("Project:") + disk.cfg.ProjectID + "\n")
 		b.WriteString(indent + cardLabel.Render("Size:") + sizeGB + " GB\n")
 		b.WriteString(indent + cardLabel.Render("Zone:") + disk.cfg.Zone + "\n")
 
 		if i == m.cursor {
 			b.WriteString(indent + cardLabel.Render("Type:") + disk.cfg.DiskType + "\n")
-			b.WriteString(indent + cardLabel.Render("Project:") + disk.cfg.ProjectID + "\n")
 			if len(disk.status.Users) > 0 {
 				b.WriteString(indent + cardLabel.Render("Attached:") + strings.Join(disk.status.Users, ", ") + "\n")
 			} else {
