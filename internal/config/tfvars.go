@@ -138,3 +138,96 @@ func ListProjects() []string {
 	}
 	return names
 }
+
+// --- Data Disk Configuration ---
+
+type DiskConfig struct {
+	Name      string
+	ProjectID string
+	Zone      string
+	DiskType  string // pd-standard, pd-balanced, pd-ssd
+	SizeGB    string
+	Formatted string // "true" if disk has been formatted
+}
+
+func DiskDir(name string) string {
+	return filepath.Join(BaseDir(), "disks", name)
+}
+
+func ListDisks() []string {
+	dir := filepath.Join(BaseDir(), "disks")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			tfvars := filepath.Join(dir, e.Name(), "terraform.tfvars")
+			if _, err := os.Stat(tfvars); err == nil {
+				names = append(names, e.Name())
+			}
+		}
+	}
+	return names
+}
+
+func LoadDiskTFVars(path string) (DiskConfig, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return DiskConfig{}, err
+	}
+	defer f.Close()
+
+	kv := make(map[string]string)
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+		val = strings.Trim(val, `"`)
+		kv[key] = val
+	}
+
+	return DiskConfig{
+		Name:      kv["disk-name"],
+		ProjectID: kv["project-id"],
+		Zone:      kv["zone"],
+		DiskType:  kv["disk-type"],
+		SizeGB:    kv["disk-size"],
+		Formatted: kv["formatted"],
+	}, scanner.Err()
+}
+
+func WriteDiskTFVars(path string, cfg DiskConfig) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	lines := []struct{ k, v string }{
+		{"disk-name", cfg.Name},
+		{"project-id", cfg.ProjectID},
+		{"zone", cfg.Zone},
+		{"disk-type", cfg.DiskType},
+		{"disk-size", cfg.SizeGB},
+		{"formatted", cfg.Formatted},
+	}
+	for _, l := range lines {
+		if _, err := fmt.Fprintf(f, "%s=\"%s\"\n", l.k, l.v); err != nil {
+			return err
+		}
+	}
+	return nil
+}

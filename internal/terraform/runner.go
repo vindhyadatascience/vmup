@@ -35,3 +35,7 @@ func (r *Runner) Apply(ctx context.Context) error {
 func (r *Runner) Destroy(ctx context.Context) error {
 	return r.tf.Destroy(ctx)
 }
+
+func (r *Runner) Import(ctx context.Context, address, id string) error {
+	return r.tf.Import(ctx, address, id)
+}

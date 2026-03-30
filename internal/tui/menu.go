@@ -11,6 +11,8 @@ const (
 	actionSSH
 	actionDestroy
 	actionStopAll
+	actionAttachDiskToVM
+	actionDetachDiskFromVM
 	actionQuit
 )
 

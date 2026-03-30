@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -16,15 +17,18 @@ import (
 )
 
 type vmEntry struct {
-	cfg    config.Config
-	status string
+	cfg             config.Config
+	status          string
+	attachedDisks   []string            // display strings like "disk-name (50 GB)"
+	attachedDiskCfg []config.DiskConfig // raw configs for attached disks
 }
 
 type vmListModel struct {
-	vms          []vmEntry
-	cursor       int
-	loading      bool
-	spinner      spinner.Model
+	vms         []vmEntry
+	cursor      int
+	loading     bool
+	loadingText string // custom loading text, empty = default
+	spinner     spinner.Model
 	flashMsg     string
 	flashIsError bool
 	tunnelMgr    *tunnel.Manager
@@ -40,9 +44,6 @@ type vmListModel struct {
 
 	// Help dialog
 	showHelp bool
-
-	// Animated gradient
-	gradientOffset int
 }
 
 // Messages
@@ -53,6 +54,17 @@ type vmListLoadedMsg struct {
 type vmListActionMsg struct {
 	action menuAction
 	cfg    config.Config
+}
+
+type vmAttachDisksReadyMsg struct {
+	vmCfg     config.Config
+	diskNames []string // managed disk names in same project/zone
+	diskCfgs  map[string]config.DiskConfig
+}
+
+type vmDetachDiskMsg struct {
+	vmCfg    config.Config
+	diskCfgs []config.DiskConfig
 }
 
 type resizeDoneMsg struct {
@@ -85,24 +97,89 @@ func (m vmListModel) Init() tea.Cmd {
 }
 
 func loadVMList() tea.Msg {
+	// Load all local VM configs first (local filesystem, fast)
 	names := config.ListProjects()
-	vms := make([]vmEntry, 0, len(names))
+	type vmCfgEntry struct {
+		cfg config.Config
+	}
+	cfgs := make([]vmCfgEntry, 0, len(names))
 	for _, name := range names {
 		tfvarsPath := filepath.Join(config.ProjectDir(name), "terraform.tfvars")
 		cfg, err := config.LoadTFVars(tfvarsPath)
 		if err != nil {
 			continue
 		}
-		status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
-		vms = append(vms, vmEntry{cfg: cfg, status: status})
+		cfgs = append(cfgs, vmCfgEntry{cfg: cfg})
 	}
+
+	// Query all VM statuses concurrently
+	vms := make([]vmEntry, len(cfgs))
+	var wg sync.WaitGroup
+	for i, c := range cfgs {
+		wg.Add(1)
+		go func(idx int, cfg config.Config) {
+			defer wg.Done()
+			status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
+			vms[idx] = vmEntry{cfg: cfg, status: status}
+		}(i, c.cfg)
+	}
+	wg.Wait()
+
+	// Load disk configs and query all disk statuses concurrently
+	diskNames := config.ListDisks()
+	type diskResult struct {
+		cfg    config.DiskConfig
+		status gcloud.DiskStatus
+	}
+	diskResults := make([]diskResult, 0, len(diskNames))
+	var diskCfgs []config.DiskConfig
+	for _, name := range diskNames {
+		tfvarsPath := filepath.Join(config.DiskDir(name), "terraform.tfvars")
+		cfg, err := config.LoadDiskTFVars(tfvarsPath)
+		if err != nil {
+			continue
+		}
+		diskCfgs = append(diskCfgs, cfg)
+	}
+
+	diskResults = make([]diskResult, len(diskCfgs))
+	for i, cfg := range diskCfgs {
+		wg.Add(1)
+		go func(idx int, cfg config.DiskConfig) {
+			defer wg.Done()
+			status := gcloud.GetDiskStatus(cfg.Name, cfg.ProjectID, cfg.Zone)
+			diskResults[idx] = diskResult{cfg: cfg, status: status}
+		}(i, cfg)
+	}
+	wg.Wait()
+
+	// Cross-reference attached disks to VMs
+	for _, dr := range diskResults {
+		for i := range vms {
+			for _, user := range dr.status.Users {
+				if user == vms[i].cfg.VMName {
+					sizeGB := dr.cfg.SizeGB
+					if dr.status.SizeGB != "" {
+						sizeGB = dr.status.SizeGB
+					}
+					mode := "rw"
+					if dr.status.Mode == "READ_ONLY" {
+						mode = "ro"
+					}
+					vms[i].attachedDisks = append(vms[i].attachedDisks, fmt.Sprintf("%s (%s GB, %s)", dr.cfg.Name, sizeGB, mode))
+					vms[i].attachedDiskCfg = append(vms[i].attachedDiskCfg, dr.cfg)
+				}
+			}
+		}
+	}
+
 	return vmListLoadedMsg{vms: vms}
 }
 
 // visibleVMs returns how many VMs fit on screen in table mode.
 func (m vmListModel) visibleTableRows() int {
-	// Overhead: title(2) + refresh(2) + header+sep(2) + detail(~8) + flash(2) + help(1) = ~17
-	v := m.height - 17
+	// Overhead: title(2) + tab bar(2) + refresh(2) + header+sep(2) + detail(~8) + flash(2) + help(1) = ~19
+	v := m.height - 19
 	if v < 1 {
 		v = 1
 	}
@@ -111,9 +188,9 @@ func (m vmListModel) visibleTableRows() int {
 
 // visibleCards returns how many cards fit on screen.
 func (m vmListModel) visibleCards() int {
-	// Overhead: title(2) + refresh(2) + flash(2) + help(1) = ~7
+	// Overhead: title(2) + tab bar(2) + refresh(2) + flash(2) + help(1) = ~9
 	// Each card: ~5 lines non-selected, ~8 selected. Use 5 as estimate.
-	v := (m.height - 7) / 5
+	v := (m.height - 9) / 5
 	if v < 1 {
 		v = 1
 	}
@@ -253,7 +330,27 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
 			}
+		case "a":
+			vm := m.vms[m.cursor]
+			if vm.status != "RUNNING" {
+				m.flashMsg = fmt.Sprintf("VM must be running to attach a disk (current status: %s)", vm.status)
+				m.flashIsError = true
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				return vmListActionMsg{action: actionAttachDiskToVM, cfg: vm.cfg}
+			}
 		case "d":
+			vm := m.vms[m.cursor]
+			if len(vm.attachedDiskCfg) == 0 {
+				m.flashMsg = "No data disks attached to this instance"
+				m.flashIsError = true
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				return vmDetachDiskMsg{vmCfg: vm.cfg, diskCfgs: vm.attachedDiskCfg}
+			}
+		case "D":
 			vm := m.vms[m.cursor]
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionDestroy, cfg: vm.cfg}
@@ -377,21 +474,27 @@ func renderTitle(offset int) string {
 
 // --- View ---
 
-func (m vmListModel) View() string {
+// ViewContent renders everything below the title and tab bar.
+func (m vmListModel) ViewContent() string {
 	var b strings.Builder
 
-	b.WriteString(renderTitle(m.gradientOffset))
-	b.WriteString("\n\n")
-
 	if m.loading && len(m.vms) == 0 {
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render("Fetching instance status from GCP..."))
+		text := "Fetching instance status from GCP..."
+		if m.loadingText != "" {
+			text = m.loadingText
+		}
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("q quit • ctrl+c quit"))
 		return b.String()
 	}
 
 	if m.loading {
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render("Refreshing..."))
+		text := "Refreshing..."
+		if m.loadingText != "" {
+			text = m.loadingText
+		}
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
 		b.WriteString("\n\n")
 	}
 
@@ -438,7 +541,7 @@ func (m vmListModel) viewTable() string {
 	sProject := lipgloss.NewStyle().Width(cw.project).Foreground(lipgloss.Color("255"))
 	sZone := lipgloss.NewStyle().Width(cw.zone).Foreground(lipgloss.Color("255"))
 	sMachine := lipgloss.NewStyle().Width(cw.machine).Foreground(lipgloss.Color("255"))
-	sStatus := lipgloss.NewStyle().Width(cw.status)
+	sStatus := lipgloss.NewStyle().Width(cw.status).Foreground(lipgloss.Color("255"))
 
 	sep := dimStyle.Render(strings.Repeat("─", w))
 
@@ -499,7 +602,10 @@ func (m vmListModel) viewTable() string {
 		detail("Image:", vm.cfg.Image)
 		detail("Port Mapping:", vm.cfg.PortMapping)
 		detail("Username:", vm.cfg.Username)
-		detail("Disk Size:", vm.cfg.BootDiskSize+" GB")
+		detail("Boot Disk:", vm.cfg.BootDiskSize+" GB")
+		if len(vm.attachedDisks) > 0 {
+			detail("Data Disks:", strings.Join(vm.attachedDisks, ", "))
+		}
 
 		if m.tunnelMgr != nil {
 			pids := m.tunnelMgr.ActivePIDsForVM(vm.cfg.VMName)
@@ -567,7 +673,10 @@ func (m vmListModel) viewCards() string {
 		if i == m.cursor {
 			b.WriteString(indent + cardLabel.Render("Image:") + vm.cfg.Image + "\n")
 			b.WriteString(indent + cardLabel.Render("Username:") + vm.cfg.Username + "\n")
-			b.WriteString(indent + cardLabel.Render("Disk Size:") + vm.cfg.BootDiskSize + " GB\n")
+			b.WriteString(indent + cardLabel.Render("Boot Disk:") + vm.cfg.BootDiskSize + " GB\n")
+			if len(vm.attachedDisks) > 0 {
+				b.WriteString(indent + cardLabel.Render("Data Disks:") + strings.Join(vm.attachedDisks, ", ") + "\n")
+			}
 		}
 
 		// Active tunnels
@@ -593,8 +702,14 @@ func (m vmListModel) viewCards() string {
 }
 
 func (m vmListModel) helpBar() string {
-	if m.renderWidth >= 100 {
-		return dimStyle.Render("↑/↓ navigate • n new vm • e edit • i info • s start • x stop • X stop all • c ssh • d destroy • r refresh • q quit")
+	if m.renderWidth >= 130 {
+		return dimStyle.Render("tab switch • ↑/↓ navigate • n new vm • e edit • i info • a attach disk • d detach disk • s start • x stop • X stop all • c ssh • D destroy • r refresh • q quit")
+	}
+	if m.renderWidth >= 110 {
+		return dimStyle.Render("tab switch • ↑/↓ navigate • n new • e edit • a attach • d detach • s start • x stop • c ssh • D destroy • r refresh • q quit")
+	}
+	if m.renderWidth >= 60 {
+		return dimStyle.Render("tab switch • ↑/↓ navigate • n new • D destroy • r refresh • q quit • ? help")
 	}
 	return dimStyle.Render("q quit • ? help")
 }
@@ -605,11 +720,13 @@ func (m vmListModel) viewHelpDialog() string {
 		{"n", "New VM"},
 		{"e", "Edit VM"},
 		{"i", "VM info"},
+		{"a", "Attach disk"},
+		{"d", "Detach disk"},
 		{"s", "Start & tunnel"},
 		{"x", "Stop tunnels"},
 		{"X", "Stop all"},
 		{"c", "SSH connect"},
-		{"d", "Destroy VM"},
+		{"D", "Destroy VM"},
 		{"r", "Refresh"},
 		{"q", "Quit"},
 	}

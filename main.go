@@ -17,7 +17,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	app := tui.NewApp(embeddedMainTF)
+	app := tui.NewApp(embeddedMainTF, embeddedDiskTF, embeddedDiskDeletableTF)
 
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	app.SetProgram(p)

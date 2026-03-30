@@ -10,16 +10,18 @@ import (
 )
 
 type statusModel struct {
-	cfg        config.Config
-	tunnelPIDs map[string]int
-	message    string
+	cfg           config.Config
+	tunnelPIDs    map[string]int
+	attachedDisks []string
+	message       string
 }
 
-func newStatusModel(cfg config.Config, tunnelPIDs map[string]int, message string) statusModel {
+func newStatusModel(cfg config.Config, tunnelPIDs map[string]int, attachedDisks []string, message string) statusModel {
 	return statusModel{
-		cfg:        cfg,
-		tunnelPIDs: tunnelPIDs,
-		message:    message,
+		cfg:           cfg,
+		tunnelPIDs:    tunnelPIDs,
+		attachedDisks: attachedDisks,
+		message:       message,
 	}
 }
 
@@ -60,9 +62,14 @@ func (m statusModel) View() string {
 	row("Zone:", m.cfg.Zone)
 	row("Machine:", m.cfg.MachineType)
 	row("Image:", m.cfg.Image)
+	row("Boot Disk:", m.cfg.BootDiskSize+" GB")
 	row("Port Mapping:", m.cfg.PortMapping)
 	row("Username:", m.cfg.Username)
 	row("Password:", m.cfg.Password)
+
+	if len(m.attachedDisks) > 0 {
+		row("Data Disks:", strings.Join(m.attachedDisks, ", "))
+	}
 
 	if len(m.tunnelPIDs) > 0 {
 		b.WriteString("\n")

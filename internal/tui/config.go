@@ -89,6 +89,7 @@ func newConfigModel() configModel {
 				Value(&m.cfg.MachineType),
 			huh.NewInput().
 				Title("Boot Disk Size (GB)").
+				Description("OS and system files — destroyed with the VM").
 				Value(&m.cfg.BootDiskSize),
 			huh.NewInput().
 				Title("Port Mapping").
@@ -162,6 +163,7 @@ func newEditConfigModel(cfg config.Config) configModel {
 				Value(&m.cfg.MachineType),
 			huh.NewInput().
 				Title("Boot Disk Size (GB)").
+				Description("OS and system files — destroyed with the VM").
 				Value(&m.cfg.BootDiskSize),
 			huh.NewInput().
 				Title("Port Mapping").

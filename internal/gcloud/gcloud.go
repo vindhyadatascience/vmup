@@ -1,6 +1,7 @@
 package gcloud
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -132,4 +133,32 @@ func SSHCommand(cfg config.Config) *exec.Cmd {
 		"--zone", cfg.Zone,
 		"--tunnel-through-iap",
 	)
+}
+
+// RunSSHCommand executes a shell command on a remote VM via IAP tunnel
+// and returns stdout. Stderr (which includes gcloud warnings) is kept
+// separate so it does not pollute the command output.
+func RunSSHCommand(cfg config.Config, command string) (string, error) {
+	cmd := exec.Command("gcloud", "compute", "ssh",
+		cfg.VMName,
+		"--project", cfg.ProjectID,
+		"--zone", cfg.Zone,
+		"--tunnel-through-iap",
+		fmt.Sprintf("--command=%s", command),
+		"--ssh-flag=-o StrictHostKeyChecking=no",
+		"--ssh-flag=-o UserKnownHostsFile=/dev/null",
+	)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		// Include stderr in error message for diagnostics
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg == "" {
+			errMsg = strings.TrimSpace(stdout.String())
+		}
+		return strings.TrimSpace(stdout.String()), fmt.Errorf("ssh command failed: %s: %w", errMsg, err)
+	}
+	return strings.TrimSpace(stdout.String()), nil
 }
