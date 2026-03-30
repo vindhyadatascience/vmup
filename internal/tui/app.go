@@ -879,8 +879,9 @@ func (a App) dispatchDiskAction(action diskAction, disk diskEntry) (tea.Model, t
 				),
 			)
 		} else {
-			// Multiple users — select which instance then confirm
+			// Multiple users — select which instance or all
 			var opts []huh.Option[string]
+			opts = append(opts, huh.NewOption(fmt.Sprintf("All (%d instances)", len(disk.status.Users)), "__all__"))
 			for _, u := range disk.status.Users {
 				opts = append(opts, huh.NewOption(u, u))
 			}
@@ -1022,7 +1023,6 @@ func vmsInZoneWithUsers(zone string) ([]string, map[string]string) {
 func (a App) refreshDiskList() (App, tea.Cmd) {
 	a.screen = screenMain
 	a.activeTab = tabDataDisks
-	// Refresh both lists (disk ops affect VM attachment display)
 	a.disklist.loading = true
 	a.vmlist.loading = true
 	return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
@@ -1358,6 +1358,12 @@ func (a App) updateDiskDetachScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if *a.confirmValue {
 			a.bgRunning = true
 			a.bgSourceTab = tabDataDisks
+			if *a.detachInstance == "__all__" {
+				a.bgTitle = fmt.Sprintf("Detaching disk from %d instances...", len(a.activeDisk.status.Users))
+				a.progress = newProgressModel(a.bgTitle)
+				a.screen = screenProgress
+				return a, tea.Batch(a.progress.Init(), a.cmdDetachDiskFromAll(a.activeDisk.cfg, a.activeDisk.status.Users))
+			}
 			a.bgTitle = "Detaching disk..."
 			a.progress = newProgressModel("Detaching disk...")
 			a.screen = screenProgress
@@ -2031,6 +2037,43 @@ func (a *App) cmdDetachDisksFromVM(vmCfg config.Config, diskCfgs []config.DiskCo
 				continue
 			}
 			a.program.Send(logLineMsg(fmt.Sprintf("Disk '%s' detached.", diskCfg.Name)))
+		}
+
+		return progressDoneMsg{err: nil}
+	}
+}
+
+func (a *App) cmdDetachDiskFromAll(diskCfg config.DiskConfig, instanceNames []string) tea.Cmd {
+	return func() tea.Msg {
+		a.program.Send(logLineMsg("Checking GCP authentication..."))
+		if !gcloud.HasAuth() {
+			return authNeededMsg{kind: "login"}
+		}
+
+		for _, instanceName := range instanceNames {
+			vmCfg := config.Config{
+				VMName:    instanceName,
+				ProjectID: diskCfg.ProjectID,
+				Zone:      diskCfg.Zone,
+			}
+
+			// Unmount if VM is running
+			status := gcloud.InstanceStatus(instanceName, diskCfg.ProjectID, diskCfg.Zone)
+			if status == "RUNNING" {
+				a.program.Send(logLineMsg(fmt.Sprintf("Unmounting '%s' from '%s'...", diskCfg.Name, instanceName)))
+				device, err := gcloud.FindDiskDevice(vmCfg, diskCfg.Name, nil)
+				if err == nil {
+					_ = gcloud.UnmountDisk(vmCfg, device)
+				}
+			}
+
+			// GCP-level detach
+			a.program.Send(logLineMsg(fmt.Sprintf("Detaching '%s' from '%s'...", diskCfg.Name, instanceName)))
+			if err := gcloud.DetachDisk(diskCfg.ProjectID, instanceName, diskCfg.Name, diskCfg.Zone); err != nil {
+				a.program.Send(logLineMsg(fmt.Sprintf("Warning: failed to detach from '%s': %v", instanceName, err)))
+				continue
+			}
+			a.program.Send(logLineMsg(fmt.Sprintf("Detached from '%s'.", instanceName)))
 		}
 
 		return progressDoneMsg{err: nil}
