@@ -1207,7 +1207,17 @@ func (a App) updateDiskAttachScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, a.confirmForm.Init()
 		}
 
-		// Mount requested — show mount options form with the correct disk name
+		// Mount requested
+		if done.sourceTab == tabDataDisks {
+			// Disk-tab form already collected mount options — go straight to attach
+			a.bgRunning = true
+			a.bgSourceTab = done.sourceTab
+			a.bgTitle = "Attaching and mounting disk..."
+			a.progress = newProgressModel("Attaching and mounting disk...")
+			a.screen = screenProgress
+			return a, tea.Batch(a.progress.Init(), a.cmdAttachDisk(done))
+		}
+		// VM-tab flow — show separate mount options form with correct disk name
 		a.diskAttach.fields.mountPoint = fmt.Sprintf("/mnt/disks/%s", done.diskCfg.Name)
 		formatted := done.diskCfg.Formatted == "true"
 		a.diskMountOpts = newDiskMountOptionsModel(a.diskAttach.fields, formatted)
