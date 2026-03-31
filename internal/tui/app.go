@@ -125,8 +125,22 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.disklist, _ = a.disklist.Update(msg)
 		return a, nil
 	case cmdPaletteExecMsg:
+		paletteInput := msg.input
 		a.cmdPalette.Close()
-		return a, msg.action
+		// Call action synchronously to check if it's a filter with args
+		result := msg.action()
+		if _, ok := result.(cmdPaletteFilterMsg); ok {
+			// Extract args after the "filter" command name
+			args := strings.TrimSpace(paletteInput)
+			if strings.HasPrefix(args, "filter") {
+				args = strings.TrimSpace(args[len("filter"):])
+			}
+			return a, func() tea.Msg { return cmdPaletteFilterMsg{args: args} }
+		}
+		return a, func() tea.Msg { return result }
+	case cmdPaletteFilterMsg:
+		a.applyFilterArgs(msg.args)
+		return a, nil
 	case cmdPaletteSwitchTabMsg:
 		if a.activeTab == tabInstances {
 			a.activeTab = tabDataDisks
@@ -165,46 +179,81 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Tab switching — only on main screen
 	if a.screen == screenMain {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.String() {
-			case ":":
-				a.vmlist.showHelp = false
-				a.disklist.showHelp = false
-				var commands []paletteCommand
-				switch a.activeTab {
-				case tabInstances:
-					commands = vmPaletteCommands(a.vmlist.vms, a.vmlist.cursor, a.bgRunning, a.progress.done)
-				case tabDataDisks:
-					commands = diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done)
-				}
-				a.cmdPalette.Open(commands, a.width)
-				return a, nil
-			case "tab", "right", "l":
-				if a.activeTab < tabDataDisks {
-					a.activeTab++
-				}
-				return a, nil
-			case "shift+tab", "left", "h":
-				if a.activeTab > tabInstances {
-					a.activeTab--
-				}
-				return a, nil
-			case "1":
-				a.activeTab = tabInstances
-				return a, nil
-			case "2":
-				a.activeTab = tabDataDisks
-				return a, nil
-			}
-
-			// Intercept 'p' key for progress viewing regardless of active tab
-			if keyMsg.String() == "p" {
-				if a.bgRunning {
-					a.screen = screenProgress
-					return a, a.progress.spinner.Tick
-				}
-				if a.progress.done {
-					a.screen = screenProgress
+			// When filter input is active, skip all app-level key interception
+			isFilterActive := (a.activeTab == tabInstances && a.vmlist.filterActive) ||
+				(a.activeTab == tabDataDisks && a.disklist.filterActive)
+			if !isFilterActive {
+				switch keyMsg.String() {
+				case ":":
+					a.vmlist.showHelp = false
+					a.disklist.showHelp = false
+					var commands []paletteCommand
+					switch a.activeTab {
+					case tabInstances:
+						commands = vmPaletteCommands(a.vmlist.vms, a.vmlist.cursor, a.bgRunning, a.progress.done)
+					case tabDataDisks:
+						commands = diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done)
+					}
+					a.cmdPalette.Open(commands, a.width)
 					return a, nil
+				case "/":
+					a.vmlist.showHelp = false
+					a.disklist.showHelp = false
+					switch a.activeTab {
+					case tabInstances:
+						a.vmlist.filterActive = true
+						if a.vmlist.hasFilter() {
+							a.vmlist.filterInput = strings.TrimSpace(a.vmlist.filterProp + " " + a.vmlist.filterValue)
+						} else {
+							a.vmlist.filterInput = ""
+						}
+						// Suspend filter to show full list while editing
+						a.vmlist.filteredIndices = nil
+						a.vmlist.cursor = 0
+						a.vmlist.scrollTop = 0
+						a.vmlist.adjustScroll()
+					case tabDataDisks:
+						a.disklist.filterActive = true
+						if a.disklist.hasFilter() {
+							a.disklist.filterInput = strings.TrimSpace(a.disklist.filterProp + " " + a.disklist.filterValue)
+						} else {
+							a.disklist.filterInput = ""
+						}
+						// Suspend filter to show full list while editing
+						a.disklist.filteredIndices = nil
+						a.disklist.cursor = 0
+						a.disklist.scrollTop = 0
+						a.disklist.adjustScroll()
+					}
+					return a, nil
+				case "tab", "right", "l":
+					if a.activeTab < tabDataDisks {
+						a.activeTab++
+					}
+					return a, nil
+				case "shift+tab", "left", "h":
+					if a.activeTab > tabInstances {
+						a.activeTab--
+					}
+					return a, nil
+				case "1":
+					a.activeTab = tabInstances
+					return a, nil
+				case "2":
+					a.activeTab = tabDataDisks
+					return a, nil
+				}
+
+				// Intercept 'p' key for progress viewing regardless of active tab
+				if keyMsg.String() == "p" {
+					if a.bgRunning {
+						a.screen = screenProgress
+						return a, a.progress.spinner.Tick
+					}
+					if a.progress.done {
+						a.screen = screenProgress
+						return a, nil
+					}
 				}
 			}
 		}
@@ -442,6 +491,59 @@ func (a App) View() string {
 		return b.String()
 	}
 	return ""
+}
+
+func (a *App) applyFilterArgs(args string) {
+	args = strings.TrimSpace(args)
+	if args != "" {
+		// Has args — apply filter directly
+		var prop, value string
+		if strings.HasPrefix(args, "\"") && strings.HasSuffix(args, "\"") {
+			value = strings.Trim(args, "\"")
+		} else {
+			parts := strings.SplitN(args, " ", 2)
+			if len(parts) == 2 {
+				prop = strings.ToLower(parts[0])
+				value = parts[1]
+			} else {
+				value = parts[0]
+			}
+		}
+		switch a.activeTab {
+		case tabInstances:
+			a.vmlist.filterProp = prop
+			a.vmlist.filterValue = value
+			a.vmlist.recomputeFilter()
+			a.vmlist.cursor = 0
+			a.vmlist.scrollTop = 0
+			a.vmlist.adjustScroll()
+		case tabDataDisks:
+			a.disklist.filterProp = prop
+			a.disklist.filterValue = value
+			a.disklist.recomputeFilter()
+			a.disklist.cursor = 0
+			a.disklist.scrollTop = 0
+			a.disklist.adjustScroll()
+		}
+	} else {
+		// No args — open filter input, suspend filter to show full list
+		switch a.activeTab {
+		case tabInstances:
+			a.vmlist.filterActive = true
+			a.vmlist.filterInput = ""
+			a.vmlist.filteredIndices = nil
+			a.vmlist.cursor = 0
+			a.vmlist.scrollTop = 0
+			a.vmlist.adjustScroll()
+		case tabDataDisks:
+			a.disklist.filterActive = true
+			a.disklist.filterInput = ""
+			a.disklist.filteredIndices = nil
+			a.disklist.cursor = 0
+			a.disklist.scrollTop = 0
+			a.disklist.adjustScroll()
+		}
+	}
 }
 
 // --- Dispatch Action ---
