@@ -26,12 +26,16 @@ type cmdPaletteModel struct {
 
 type cmdPaletteExecMsg struct {
 	action func() tea.Msg
+	input  string // raw palette input at time of execution
 }
 
 // Palette-specific message types for actions handled directly by the App.
 type cmdPaletteSwitchTabMsg struct{}
 type cmdPaletteRefreshMsg struct{ tab tab }
 type cmdPaletteProgressMsg struct{}
+type cmdPaletteFilterMsg struct {
+	args string // optional pre-filled filter args from ":filter prop term"
+}
 
 func newCmdPalette() cmdPaletteModel {
 	return cmdPaletteModel{}
@@ -68,7 +72,8 @@ func (m cmdPaletteModel) Update(msg tea.Msg) (cmdPaletteModel, tea.Cmd) {
 	case tea.KeyEnter:
 		if len(m.filtered) > 0 {
 			action := m.commands[m.filtered[m.cursor]].action
-			return m, func() tea.Msg { return cmdPaletteExecMsg{action: action} }
+			input := m.input
+			return m, func() tea.Msg { return cmdPaletteExecMsg{action: action, input: input} }
 		}
 		return m, nil
 
@@ -350,6 +355,10 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 		return vmListActionMsg{action: actionStopAll}
 	}))
 
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", func() tea.Msg {
+		return cmdPaletteFilterMsg{}
+	}))
+
 	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabInstances}
 	}))
@@ -407,6 +416,10 @@ func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progress
 			}))
 		}
 	}
+
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", func() tea.Msg {
+		return cmdPaletteFilterMsg{}
+	}))
 
 	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabDataDisks}

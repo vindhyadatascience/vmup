@@ -45,6 +45,13 @@ type vmListModel struct {
 	// Help dialog
 	showHelp    bool
 	hideHelpBar bool
+
+	// Filter
+	filterActive    bool
+	filterInput     string
+	filterProp      string
+	filterValue     string
+	filteredIndices []int
 }
 
 // Messages
@@ -215,13 +222,135 @@ func (m *vmListModel) adjustScroll() {
 	if m.scrollTop < 0 {
 		m.scrollTop = 0
 	}
-	maxScroll := len(m.vms) - visible
+	maxScroll := m.displayCount() - visible
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
 	if m.scrollTop > maxScroll {
 		m.scrollTop = maxScroll
 	}
+}
+
+// --- Filter helpers ---
+
+func (m vmListModel) displayCount() int {
+	if m.filteredIndices != nil {
+		return len(m.filteredIndices)
+	}
+	return len(m.vms)
+}
+
+func (m vmListModel) displayVM(i int) vmEntry {
+	if m.filteredIndices != nil {
+		return m.vms[m.filteredIndices[i]]
+	}
+	return m.vms[i]
+}
+
+func (m vmListModel) hasFilter() bool {
+	return m.filterProp != "" || m.filterValue != ""
+}
+
+func vmFieldValue(vm vmEntry, prop string) string {
+	switch prop {
+	case "name", "vm", "vmname":
+		return vm.cfg.VMName
+	case "project", "projectid":
+		return vm.cfg.ProjectID
+	case "zone":
+		return vm.cfg.Zone
+	case "region":
+		return vm.cfg.Region
+	case "machine", "machinetype", "type":
+		return vm.cfg.MachineType
+	case "image":
+		return vm.cfg.Image
+	case "status":
+		return vm.status
+	case "user", "username":
+		return vm.cfg.Username
+	case "bootdisk", "boot":
+		return vm.cfg.BootDiskSize + " GB"
+	case "disk", "disks", "datadisk", "datadisks":
+		return strings.Join(vm.attachedDisks, ", ")
+	case "port", "ports", "portmapping":
+		return vm.cfg.PortMapping
+	default:
+		return ""
+	}
+}
+
+// vmFilterProps is the canonical list of property names used for global search.
+// Add new entries here when adding filterable fields to vmFieldValue.
+var vmFilterProps = []string{
+	"name", "project", "zone", "region", "machine", "image",
+	"status", "user", "bootdisk", "disks", "port",
+}
+
+func vmMatchesAny(vm vmEntry, query string) bool {
+	for _, prop := range vmFilterProps {
+		val := strings.ToLower(vmFieldValue(vm, prop))
+		if val != "" && strings.Contains(val, query) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *vmListModel) recomputeFilter() {
+	if m.filterProp == "" && m.filterValue == "" {
+		m.filteredIndices = nil
+		return
+	}
+	// Must use a non-nil empty slice so displayCount() knows a filter is active
+	if m.filteredIndices == nil {
+		m.filteredIndices = []int{}
+	}
+	m.filteredIndices = m.filteredIndices[:0]
+	query := strings.ToLower(m.filterValue)
+	for i, vm := range m.vms {
+		if m.filterProp != "" {
+			val := strings.ToLower(vmFieldValue(vm, m.filterProp))
+			if strings.Contains(val, query) {
+				m.filteredIndices = append(m.filteredIndices, i)
+			}
+		} else {
+			if vmMatchesAny(vm, query) {
+				m.filteredIndices = append(m.filteredIndices, i)
+			}
+		}
+	}
+}
+
+func (m vmListModel) viewFilterInput() string {
+	var b strings.Builder
+	w := m.renderWidth
+	if w < 30 {
+		w = 30
+	}
+	sep := dimStyle.Render(strings.Repeat("─", w))
+	prompt := palettePromptStyle.Render("/")
+
+	b.WriteString(sep + "\n")
+	if m.filterInput == "" {
+		b.WriteString("  " + prompt + dimStyle.Render("[property] [term]") + "\n")
+	} else {
+		b.WriteString("  " + prompt + statusValStyle.Render(m.filterInput) + dimStyle.Render("▎") + "\n")
+	}
+	b.WriteString(sep + "\n")
+	b.WriteString(dimStyle.Render("tab next • enter apply • esc cancel"))
+	return b.String()
+}
+
+func (m vmListModel) viewFilterIndicator() string {
+	filterText := m.filterValue
+	if m.filterProp != "" {
+		filterText = m.filterProp + " " + m.filterValue
+	}
+	count := m.displayCount()
+	total := len(m.vms)
+	return infoStyle.Render(fmt.Sprintf("filter: %s (%d/%d)", filterText, count, total)) +
+		dimStyle.Render(" • / edit • esc clear")
 }
 
 func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
@@ -246,8 +375,9 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 	case vmListLoadedMsg:
 		m.vms = msg.vms
 		m.loading = false
-		if m.cursor >= len(m.vms) && len(m.vms) > 0 {
-			m.cursor = len(m.vms) - 1
+		m.recomputeFilter()
+		if m.cursor >= m.displayCount() && m.displayCount() > 0 {
+			m.cursor = m.displayCount() - 1
 		}
 		m.adjustScroll()
 		return m, nil
@@ -261,9 +391,84 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Filter input mode — capture all keys
+		if m.filterActive {
+			switch msg.Type {
+			case tea.KeyEnter:
+				m.filterActive = false
+				raw := strings.TrimSpace(m.filterInput)
+				if raw == "" {
+					m.filterProp = ""
+					m.filterValue = ""
+					m.filteredIndices = nil
+				} else if strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") {
+					m.filterProp = ""
+					m.filterValue = strings.Trim(raw, "\"")
+					m.recomputeFilter()
+				} else {
+					parts := strings.SplitN(raw, " ", 2)
+					if len(parts) == 2 {
+						m.filterProp = strings.ToLower(parts[0])
+						m.filterValue = parts[1]
+					} else {
+						m.filterProp = ""
+						m.filterValue = parts[0]
+					}
+					m.recomputeFilter()
+				}
+				m.cursor = 0
+				m.scrollTop = 0
+				m.adjustScroll()
+				return m, nil
+			case tea.KeyEscape, tea.KeyCtrlC:
+				m.filterActive = false
+				// Re-apply committed filter if any
+				m.recomputeFilter()
+				m.cursor = 0
+				m.scrollTop = 0
+				m.adjustScroll()
+				return m, nil
+			case tea.KeyBackspace:
+				if len(m.filterInput) > 0 {
+					m.filterInput = m.filterInput[:len(m.filterInput)-1]
+				} else {
+					// Backspace on empty — fully clear filter and dismiss
+					m.filterActive = false
+					m.filterProp = ""
+					m.filterValue = ""
+					m.filteredIndices = nil
+					m.cursor = 0
+					m.scrollTop = 0
+					m.adjustScroll()
+				}
+				return m, nil
+			case tea.KeyTab:
+				m.filterInput += " "
+				return m, nil
+			case tea.KeySpace:
+				m.filterInput += " "
+				return m, nil
+			case tea.KeyRunes:
+				m.filterInput += string(msg.Runes)
+				return m, nil
+			}
+			return m, nil
+		}
+
 		// Dismiss help dialog on any key
 		if m.showHelp {
 			m.showHelp = false
+			return m, nil
+		}
+
+		// Clear committed filter on Esc or Backspace
+		if (msg.Type == tea.KeyEscape || msg.Type == tea.KeyBackspace) && m.hasFilter() {
+			m.filterProp = ""
+			m.filterValue = ""
+			m.filteredIndices = nil
+			m.cursor = 0
+			m.scrollTop = 0
+			m.adjustScroll()
 			return m, nil
 		}
 
@@ -277,7 +482,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 			return m, nil
 		}
 
-		if len(m.vms) == 0 {
+		if m.displayCount() == 0 {
 			switch msg.String() {
 			case "n":
 				return m, func() tea.Msg {
@@ -286,6 +491,9 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 			case "?":
 				m.showHelp = true
 				return m, nil
+			case "r":
+				m.loading = true
+				return m, tea.Batch(loadVMList, m.spinner.Tick)
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
@@ -299,7 +507,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				m.adjustScroll()
 			}
 		case "down", "j":
-			if m.cursor < len(m.vms)-1 {
+			if m.cursor < m.displayCount()-1 {
 				m.cursor++
 				m.adjustScroll()
 			}
@@ -308,12 +516,12 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return vmListActionMsg{action: actionLaunch}
 			}
 		case "s":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionStartTunnels, cfg: vm.cfg}
 			}
 		case "x":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionStopTunnels, cfg: vm.cfg}
 			}
@@ -322,7 +530,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return vmListActionMsg{action: actionStopAll}
 			}
 		case "c":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			if vm.status != "RUNNING" {
 				m.flashMsg = fmt.Sprintf("SSH requires a running VM (current status: %s). Use 's' to start it first.", vm.status)
 				m.flashIsError = true
@@ -332,7 +540,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
 			}
 		case "a":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			if vm.status != "RUNNING" {
 				m.flashMsg = fmt.Sprintf("VM must be running to attach a disk (current status: %s)", vm.status)
 				m.flashIsError = true
@@ -342,7 +550,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return vmListActionMsg{action: actionAttachDiskToVM, cfg: vm.cfg}
 			}
 		case "d":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			if len(vm.attachedDiskCfg) == 0 {
 				m.flashMsg = "No data disks attached to this instance"
 				m.flashIsError = true
@@ -352,17 +560,17 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return vmDetachDiskMsg{vmCfg: vm.cfg, diskCfgs: vm.attachedDiskCfg}
 			}
 		case "D":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionDestroy, cfg: vm.cfg}
 			}
 		case "e":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionEdit, cfg: vm.cfg}
 			}
 		case "i":
-			vm := m.vms[m.cursor]
+			vm := m.displayVM(m.cursor)
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionInfo, cfg: vm.cfg}
 			}
@@ -499,10 +707,22 @@ func (m vmListModel) ViewContent() string {
 		b.WriteString("\n\n")
 	}
 
-	if len(m.vms) == 0 {
+	if len(m.vms) == 0 && !m.hasFilter() {
 		b.WriteString(dimStyle.Render("No VMs found."))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("Press n to launch a new VM."))
+		return b.String()
+	}
+
+	if m.displayCount() == 0 && m.hasFilter() {
+		b.WriteString(dimStyle.Render("No matching items. / to edit filter • esc or backspace to clear"))
+		if m.filterActive {
+			b.WriteString("\n")
+			b.WriteString(m.viewFilterInput())
+		} else {
+			b.WriteString("\n")
+			b.WriteString(m.viewFilterIndicator())
+		}
 		return b.String()
 	}
 
@@ -527,7 +747,17 @@ func (m vmListModel) ViewContent() string {
 		return b.String()
 	}
 
-	if !m.hideHelpBar {
+	if m.filterActive {
+		b.WriteString("\n")
+		b.WriteString(m.viewFilterInput())
+	} else if m.hasFilter() {
+		b.WriteString("\n")
+		b.WriteString(m.viewFilterIndicator())
+		if !m.hideHelpBar {
+			b.WriteString("\n")
+			b.WriteString(m.helpBar())
+		}
+	} else if !m.hideHelpBar {
 		b.WriteString("\n")
 		b.WriteString(m.helpBar())
 	}
@@ -561,9 +791,10 @@ func (m vmListModel) viewTable() string {
 
 	// Scroll bounds
 	visible := m.visibleTableRows()
+	count := m.displayCount()
 	end := m.scrollTop + visible
-	if end > len(m.vms) {
-		end = len(m.vms)
+	if end > count {
+		end = count
 	}
 
 	if m.scrollTop > 0 {
@@ -572,7 +803,7 @@ func (m vmListModel) viewTable() string {
 
 	// Rows
 	for i := m.scrollTop; i < end; i++ {
-		vm := m.vms[i]
+		vm := m.displayVM(i)
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
@@ -591,13 +822,13 @@ func (m vmListModel) viewTable() string {
 		b.WriteString(row + "\n")
 	}
 
-	if end < len(m.vms) {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", len(m.vms)-end)) + "\n")
+	if end < count {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", count-end)) + "\n")
 	}
 
 	// Detail section for selected VM
-	if m.cursor < len(m.vms) {
-		vm := m.vms[m.cursor]
+	if m.cursor < count {
+		vm := m.displayVM(m.cursor)
 		b.WriteString("\n" + sep + "\n")
 		detail := func(k, v string) {
 			b.WriteString(statusKeyStyle.Render(k) + statusValStyle.Render(v) + "\n")
@@ -635,9 +866,10 @@ func (m vmListModel) viewCards() string {
 
 	// Scroll bounds
 	visible := m.visibleCards()
+	count := m.displayCount()
 	end := m.scrollTop + visible
-	if end > len(m.vms) {
-		end = len(m.vms)
+	if end > count {
+		end = count
 	}
 
 	if m.scrollTop > 0 {
@@ -645,7 +877,7 @@ func (m vmListModel) viewCards() string {
 	}
 
 	for i := m.scrollTop; i < end; i++ {
-		vm := m.vms[i]
+		vm := m.displayVM(i)
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
@@ -697,8 +929,8 @@ func (m vmListModel) viewCards() string {
 		b.WriteString(sep + "\n")
 	}
 
-	if end < len(m.vms) {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", len(m.vms)-end)) + "\n")
+	if end < count {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", count-end)) + "\n")
 	}
 
 	return b.String()
@@ -706,15 +938,15 @@ func (m vmListModel) viewCards() string {
 
 func (m vmListModel) helpBar() string {
 	if m.renderWidth >= 130 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new vm • e edit • i info • a attach disk • d detach disk • s start • x stop • X stop all • c ssh • D destroy • r refresh • : command • q quit")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new vm • e edit • i info • a attach disk • d detach disk • s start • x stop • X stop all • c ssh • D destroy • / filter • r refresh • : command • q quit")
 	}
 	if m.renderWidth >= 110 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • e edit • a attach • d detach • s start • x stop • c ssh • D destroy • r refresh • : command • q quit")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • e edit • a attach • d detach • s start • x stop • c ssh • D destroy • / filter • r refresh • : command • q quit")
 	}
 	if m.renderWidth >= 60 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D destroy • r refresh • : command • q quit • ? help")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D destroy • / filter • r refresh • : command • q quit • ? help")
 	}
-	return dimStyle.Render(": command • q quit • ? help")
+	return dimStyle.Render("/ filter • : command • q quit • ? help")
 }
 
 func (m vmListModel) viewHelpDialog() string {
@@ -730,7 +962,9 @@ func (m vmListModel) viewHelpDialog() string {
 		{"X", "Stop all"},
 		{"c", "SSH connect"},
 		{"D", "Destroy VM"},
+		{"/", "Filter list"},
 		{"r", "Refresh"},
+		{":", "Command palette"},
 		{"q", "Quit"},
 	}
 

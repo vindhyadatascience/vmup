@@ -42,6 +42,13 @@ type diskListModel struct {
 	// Help dialog
 	showHelp    bool
 	hideHelpBar bool
+
+	// Filter
+	filterActive    bool
+	filterInput     string
+	filterProp      string
+	filterValue     string
+	filteredIndices []int
 }
 
 // Messages
@@ -158,13 +165,129 @@ func (m *diskListModel) adjustScroll() {
 	if m.scrollTop < 0 {
 		m.scrollTop = 0
 	}
-	maxScroll := len(m.disks) - visible
+	maxScroll := m.displayCount() - visible
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
 	if m.scrollTop > maxScroll {
 		m.scrollTop = maxScroll
 	}
+}
+
+// --- Filter helpers ---
+
+func (m diskListModel) displayCount() int {
+	if m.filteredIndices != nil {
+		return len(m.filteredIndices)
+	}
+	return len(m.disks)
+}
+
+func (m diskListModel) displayDisk(i int) diskEntry {
+	if m.filteredIndices != nil {
+		return m.disks[m.filteredIndices[i]]
+	}
+	return m.disks[i]
+}
+
+func (m diskListModel) hasFilter() bool {
+	return m.filterProp != "" || m.filterValue != ""
+}
+
+func diskFieldValue(disk diskEntry, prop string) string {
+	switch prop {
+	case "name", "diskname":
+		return disk.cfg.Name
+	case "project", "projectid":
+		return disk.cfg.ProjectID
+	case "zone":
+		return disk.cfg.Zone
+	case "type", "disktype":
+		return disk.cfg.DiskType
+	case "size", "sizegb":
+		if disk.status.SizeGB != "" {
+			return disk.status.SizeGB + " GB"
+		}
+		return disk.cfg.SizeGB + " GB"
+	case "status":
+		return disk.status.Status
+	case "attached", "attachedto", "user":
+		return strings.Join(disk.status.Users, ", ")
+	default:
+		return ""
+	}
+}
+
+// diskFilterProps is the canonical list of property names used for global search.
+// Add new entries here when adding filterable fields to diskFieldValue.
+var diskFilterProps = []string{
+	"name", "project", "zone", "type", "size", "status", "attached",
+}
+
+func diskMatchesAny(disk diskEntry, query string) bool {
+	for _, prop := range diskFilterProps {
+		val := strings.ToLower(diskFieldValue(disk, prop))
+		if val != "" && strings.Contains(val, query) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *diskListModel) recomputeFilter() {
+	if m.filterProp == "" && m.filterValue == "" {
+		m.filteredIndices = nil
+		return
+	}
+	// Must use a non-nil empty slice so displayCount() knows a filter is active
+	if m.filteredIndices == nil {
+		m.filteredIndices = []int{}
+	}
+	m.filteredIndices = m.filteredIndices[:0]
+	query := strings.ToLower(m.filterValue)
+	for i, disk := range m.disks {
+		if m.filterProp != "" {
+			val := strings.ToLower(diskFieldValue(disk, m.filterProp))
+			if strings.Contains(val, query) {
+				m.filteredIndices = append(m.filteredIndices, i)
+			}
+		} else {
+			if diskMatchesAny(disk, query) {
+				m.filteredIndices = append(m.filteredIndices, i)
+			}
+		}
+	}
+}
+
+func (m diskListModel) viewFilterInput() string {
+	var b strings.Builder
+	w := m.renderWidth
+	if w < 30 {
+		w = 30
+	}
+	sep := dimStyle.Render(strings.Repeat("─", w))
+	prompt := palettePromptStyle.Render("/")
+
+	b.WriteString(sep + "\n")
+	if m.filterInput == "" {
+		b.WriteString("  " + prompt + dimStyle.Render("[property] [term]") + "\n")
+	} else {
+		b.WriteString("  " + prompt + statusValStyle.Render(m.filterInput) + dimStyle.Render("▎") + "\n")
+	}
+	b.WriteString(sep + "\n")
+	b.WriteString(dimStyle.Render("tab next • enter apply • esc cancel"))
+	return b.String()
+}
+
+func (m diskListModel) viewFilterIndicator() string {
+	filterText := m.filterValue
+	if m.filterProp != "" {
+		filterText = m.filterProp + " " + m.filterValue
+	}
+	count := m.displayCount()
+	total := len(m.disks)
+	return infoStyle.Render(fmt.Sprintf("filter: %s (%d/%d)", filterText, count, total)) +
+		dimStyle.Render(" • / edit • esc clear")
 }
 
 func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
@@ -189,8 +312,9 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 	case diskListLoadedMsg:
 		m.disks = msg.disks
 		m.loading = false
-		if m.cursor >= len(m.disks) && len(m.disks) > 0 {
-			m.cursor = len(m.disks) - 1
+		m.recomputeFilter()
+		if m.cursor >= m.displayCount() && m.displayCount() > 0 {
+			m.cursor = m.displayCount() - 1
 		}
 		m.adjustScroll()
 		return m, nil
@@ -204,9 +328,84 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Filter input mode — capture all keys
+		if m.filterActive {
+			switch msg.Type {
+			case tea.KeyEnter:
+				m.filterActive = false
+				raw := strings.TrimSpace(m.filterInput)
+				if raw == "" {
+					m.filterProp = ""
+					m.filterValue = ""
+					m.filteredIndices = nil
+				} else if strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") {
+					m.filterProp = ""
+					m.filterValue = strings.Trim(raw, "\"")
+					m.recomputeFilter()
+				} else {
+					parts := strings.SplitN(raw, " ", 2)
+					if len(parts) == 2 {
+						m.filterProp = strings.ToLower(parts[0])
+						m.filterValue = parts[1]
+					} else {
+						m.filterProp = ""
+						m.filterValue = parts[0]
+					}
+					m.recomputeFilter()
+				}
+				m.cursor = 0
+				m.scrollTop = 0
+				m.adjustScroll()
+				return m, nil
+			case tea.KeyEscape, tea.KeyCtrlC:
+				m.filterActive = false
+				// Re-apply committed filter if any
+				m.recomputeFilter()
+				m.cursor = 0
+				m.scrollTop = 0
+				m.adjustScroll()
+				return m, nil
+			case tea.KeyBackspace:
+				if len(m.filterInput) > 0 {
+					m.filterInput = m.filterInput[:len(m.filterInput)-1]
+				} else {
+					// Backspace on empty — fully clear filter and dismiss
+					m.filterActive = false
+					m.filterProp = ""
+					m.filterValue = ""
+					m.filteredIndices = nil
+					m.cursor = 0
+					m.scrollTop = 0
+					m.adjustScroll()
+				}
+				return m, nil
+			case tea.KeyTab:
+				m.filterInput += " "
+				return m, nil
+			case tea.KeySpace:
+				m.filterInput += " "
+				return m, nil
+			case tea.KeyRunes:
+				m.filterInput += string(msg.Runes)
+				return m, nil
+			}
+			return m, nil
+		}
+
 		// Dismiss help dialog on any key
 		if m.showHelp {
 			m.showHelp = false
+			return m, nil
+		}
+
+		// Clear committed filter on Esc or Backspace
+		if (msg.Type == tea.KeyEscape || msg.Type == tea.KeyBackspace) && m.hasFilter() {
+			m.filterProp = ""
+			m.filterValue = ""
+			m.filteredIndices = nil
+			m.cursor = 0
+			m.scrollTop = 0
+			m.adjustScroll()
 			return m, nil
 		}
 
@@ -220,7 +419,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 			return m, nil
 		}
 
-		if len(m.disks) == 0 {
+		if m.displayCount() == 0 {
 			switch msg.String() {
 			case "n":
 				return m, func() tea.Msg {
@@ -233,6 +432,9 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 			case "?":
 				m.showHelp = true
 				return m, nil
+			case "r":
+				m.loading = true
+				return m, tea.Batch(loadDiskList, m.spinner.Tick)
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
@@ -246,7 +448,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 				m.adjustScroll()
 			}
 		case "down", "j":
-			if m.cursor < len(m.disks)-1 {
+			if m.cursor < m.displayCount()-1 {
 				m.cursor++
 				m.adjustScroll()
 			}
@@ -259,7 +461,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 				return diskListActionMsg{action: actionDiskImport}
 			}
 		case "D":
-			disk := m.disks[m.cursor]
+			disk := m.displayDisk(m.cursor)
 			if len(disk.status.Users) > 0 {
 				m.flashMsg = "Disk must be detached before deletion"
 				m.flashIsError = true
@@ -269,12 +471,12 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 				return diskListActionMsg{action: actionDiskDelete, disk: disk}
 			}
 		case "e":
-			disk := m.disks[m.cursor]
+			disk := m.displayDisk(m.cursor)
 			return m, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskResize, disk: disk}
 			}
 		case "a":
-			disk := m.disks[m.cursor]
+			disk := m.displayDisk(m.cursor)
 			if len(disk.status.Users) > 0 && disk.status.Mode == "READ_WRITE" {
 				m.flashMsg = fmt.Sprintf("Disk is already attached in read/write mode to %s", disk.status.Users[0])
 				m.flashIsError = true
@@ -284,7 +486,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 				return diskListActionMsg{action: actionDiskAttach, disk: disk}
 			}
 		case "d":
-			disk := m.disks[m.cursor]
+			disk := m.displayDisk(m.cursor)
 			if len(disk.status.Users) == 0 {
 				m.flashMsg = "Disk is not attached to any instance"
 				m.flashIsError = true
@@ -370,7 +572,7 @@ func (m diskListModel) ViewContent() string {
 		b.WriteString("\n\n")
 	}
 
-	if len(m.disks) == 0 {
+	if len(m.disks) == 0 && !m.hasFilter() {
 		b.WriteString(dimStyle.Render("No managed data disks found."))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("Press n to create a new data disk, or I to import an existing one."))
@@ -386,6 +588,18 @@ func (m diskListModel) ViewContent() string {
 
 		b.WriteString("\n")
 		b.WriteString(m.helpBar())
+		return b.String()
+	}
+
+	if m.displayCount() == 0 && m.hasFilter() {
+		b.WriteString(dimStyle.Render("No matching items. / to edit filter • esc or backspace to clear"))
+		if m.filterActive {
+			b.WriteString("\n")
+			b.WriteString(m.viewFilterInput())
+		} else {
+			b.WriteString("\n")
+			b.WriteString(m.viewFilterIndicator())
+		}
 		return b.String()
 	}
 
@@ -410,7 +624,17 @@ func (m diskListModel) ViewContent() string {
 		return b.String()
 	}
 
-	if !m.hideHelpBar {
+	if m.filterActive {
+		b.WriteString("\n")
+		b.WriteString(m.viewFilterInput())
+	} else if m.hasFilter() {
+		b.WriteString("\n")
+		b.WriteString(m.viewFilterIndicator())
+		if !m.hideHelpBar {
+			b.WriteString("\n")
+			b.WriteString(m.helpBar())
+		}
+	} else if !m.hideHelpBar {
 		b.WriteString("\n")
 		b.WriteString(m.helpBar())
 	}
@@ -448,9 +672,10 @@ func (m diskListModel) viewTable() string {
 
 	// Scroll bounds
 	visible := m.visibleTableRows()
+	count := m.displayCount()
 	end := m.scrollTop + visible
-	if end > len(m.disks) {
-		end = len(m.disks)
+	if end > count {
+		end = count
 	}
 
 	if m.scrollTop > 0 {
@@ -459,7 +684,7 @@ func (m diskListModel) viewTable() string {
 
 	// Rows
 	for i := m.scrollTop; i < end; i++ {
-		disk := m.disks[i]
+		disk := m.displayDisk(i)
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
@@ -485,13 +710,13 @@ func (m diskListModel) viewTable() string {
 		b.WriteString(row + "\n")
 	}
 
-	if end < len(m.disks) {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", len(m.disks)-end)) + "\n")
+	if end < count {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", count-end)) + "\n")
 	}
 
 	// Detail section for selected disk
-	if m.cursor < len(m.disks) {
-		disk := m.disks[m.cursor]
+	if m.cursor < count {
+		disk := m.displayDisk(m.cursor)
 		b.WriteString("\n" + sep + "\n")
 		detail := func(k, v string) {
 			b.WriteString(statusKeyStyle.Render(k) + statusValStyle.Render(v) + "\n")
@@ -526,9 +751,10 @@ func (m diskListModel) viewCards() string {
 
 	// Scroll bounds
 	visible := m.visibleCards()
+	count := m.displayCount()
 	end := m.scrollTop + visible
-	if end > len(m.disks) {
-		end = len(m.disks)
+	if end > count {
+		end = count
 	}
 
 	if m.scrollTop > 0 {
@@ -536,7 +762,7 @@ func (m diskListModel) viewCards() string {
 	}
 
 	for i := m.scrollTop; i < end; i++ {
-		disk := m.disks[i]
+		disk := m.displayDisk(i)
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
@@ -578,8 +804,8 @@ func (m diskListModel) viewCards() string {
 		b.WriteString(sep + "\n")
 	}
 
-	if end < len(m.disks) {
-		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", len(m.disks)-end)) + "\n")
+	if end < count {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  ↓ %d more below", count-end)) + "\n")
 	}
 
 	return b.String()
@@ -587,12 +813,12 @@ func (m diskListModel) viewCards() string {
 
 func (m diskListModel) helpBar() string {
 	if m.renderWidth >= 110 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new disk • I import • e resize • a attach • d detach • D delete • r refresh • : command • q quit")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new disk • I import • e resize • a attach • d detach • D delete • / filter • r refresh • : command • q quit")
 	}
 	if m.renderWidth >= 60 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D delete • r refresh • : command • q quit • ? help")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D delete • / filter • r refresh • : command • q quit • ? help")
 	}
-	return dimStyle.Render(": command • q quit • ? help")
+	return dimStyle.Render("/ filter • : command • q quit • ? help")
 }
 
 func (m diskListModel) viewHelpDialog() string {
@@ -604,7 +830,9 @@ func (m diskListModel) viewHelpDialog() string {
 		{"a", "Attach to VM"},
 		{"d", "Detach from VM"},
 		{"D", "Delete disk"},
+		{"/", "Filter list"},
 		{"r", "Refresh"},
+		{":", "Command palette"},
 		{"tab", "Switch tab"},
 		{"q", "Quit"},
 	}
