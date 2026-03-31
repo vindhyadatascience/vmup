@@ -66,6 +66,37 @@ func (m *cmdPaletteModel) Open(commands []paletteCommand, width int) {
 	m.filterCommands()
 }
 
+// Rebuild replaces the command list while preserving input, category, and cursor.
+func (m *cmdPaletteModel) Rebuild(commands []paletteCommand) {
+	if !m.active {
+		return
+	}
+	m.commands = commands
+
+	// Rebuild categories, try to preserve selection
+	prevCat := ""
+	if m.catIdx > 0 && m.catIdx < len(m.categories) {
+		prevCat = m.categories[m.catIdx]
+	}
+	m.categories = []string{"All"}
+	seen := map[string]bool{}
+	for _, cmd := range commands {
+		if cmd.category != "" && !seen[cmd.category] {
+			m.categories = append(m.categories, cmd.category)
+			seen[cmd.category] = true
+		}
+	}
+	m.catIdx = 0
+	for i, cat := range m.categories {
+		if cat == prevCat {
+			m.catIdx = i
+			break
+		}
+	}
+
+	m.filterCommands()
+}
+
 func (m *cmdPaletteModel) Close() {
 	m.active = false
 	m.input = ""

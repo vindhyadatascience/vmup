@@ -111,10 +111,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vmListLoadedMsg:
 		// Always deliver to vmlist regardless of active tab/screen
 		a.vmlist, _ = a.vmlist.Update(msg)
+		if a.cmdPalette.active && a.activeTab == tabInstances {
+			a.cmdPalette.Rebuild(vmPaletteCommands(a.vmlist.vms, a.vmlist.cursor, a.bgRunning, a.progress.done))
+		}
 		return a, nil
 	case diskListLoadedMsg:
 		// Always deliver to disklist regardless of active tab/screen
 		a.disklist, _ = a.disklist.Update(msg)
+		if a.cmdPalette.active && a.activeTab == tabDataDisks {
+			a.cmdPalette.Rebuild(diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done))
+		}
 		return a, nil
 	case resizeDoneMsg:
 		// Always deliver resize debounce to vmlist
