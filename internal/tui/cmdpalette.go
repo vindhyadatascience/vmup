@@ -8,20 +8,24 @@ import (
 )
 
 type paletteCommand struct {
-	key    string        // shortcut key, e.g. "n"
-	name   string        // word command, e.g. "new-instance"
-	desc   string        // description, e.g. "Start a new VM instance"
-	filter string        // lowercase search text
-	action func() tea.Msg // closure producing the action message
+	key      string         // shortcut key, e.g. "n"
+	name     string         // word command, e.g. "new-instance"
+	desc     string         // description, e.g. "Start a new VM instance"
+	filter   string         // lowercase search text
+	color    lipgloss.Color // semantic color for the command name
+	category string         // group name, e.g. "Create & Connect"
+	action   func() tea.Msg // closure producing the action message
 }
 
 type cmdPaletteModel struct {
-	active   bool
-	input    string
-	commands []paletteCommand
-	filtered []int
-	cursor   int
-	width    int
+	active     bool
+	input      string
+	commands   []paletteCommand
+	filtered   []int
+	cursor     int
+	width      int
+	categories []string // "All" + unique categories from commands
+	catIdx     int      // selected category index (0 = All)
 }
 
 type cmdPaletteExecMsg struct {
@@ -47,6 +51,18 @@ func (m *cmdPaletteModel) Open(commands []paletteCommand, width int) {
 	m.commands = commands
 	m.cursor = 0
 	m.width = width
+	m.catIdx = 0
+
+	// Build unique category list preserving order
+	m.categories = []string{"All"}
+	seen := map[string]bool{}
+	for _, cmd := range commands {
+		if cmd.category != "" && !seen[cmd.category] {
+			m.categories = append(m.categories, cmd.category)
+			seen[cmd.category] = true
+		}
+	}
+
 	m.filterCommands()
 }
 
@@ -55,6 +71,8 @@ func (m *cmdPaletteModel) Close() {
 	m.input = ""
 	m.commands = nil
 	m.filtered = nil
+	m.categories = nil
+	m.catIdx = 0
 	m.cursor = 0
 }
 
@@ -104,6 +122,28 @@ func (m cmdPaletteModel) Update(msg tea.Msg) (cmdPaletteModel, tea.Cmd) {
 		}
 		return m, nil
 
+	case tea.KeyLeft:
+		if len(m.categories) > 1 {
+			m.catIdx--
+			if m.catIdx < 0 {
+				m.catIdx = len(m.categories) - 1
+			}
+			m.cursor = 0
+			m.filterCommands()
+		}
+		return m, nil
+
+	case tea.KeyRight:
+		if len(m.categories) > 1 {
+			m.catIdx++
+			if m.catIdx >= len(m.categories) {
+				m.catIdx = 0
+			}
+			m.cursor = 0
+			m.filterCommands()
+		}
+		return m, nil
+
 	case tea.KeyRunes:
 		m.input += string(keyMsg.Runes)
 		m.filterCommands()
@@ -116,7 +156,14 @@ func (m cmdPaletteModel) Update(msg tea.Msg) (cmdPaletteModel, tea.Cmd) {
 func (m *cmdPaletteModel) filterCommands() {
 	m.filtered = m.filtered[:0] // reuse backing array
 	query := strings.ToLower(m.input)
+	activeCat := ""
+	if m.catIdx > 0 && m.catIdx < len(m.categories) {
+		activeCat = m.categories[m.catIdx]
+	}
 	for i, cmd := range m.commands {
+		if activeCat != "" && cmd.category != activeCat {
+			continue
+		}
 		if query == "" || strings.Contains(cmd.filter, query) {
 			m.filtered = append(m.filtered, i)
 		}
@@ -131,6 +178,50 @@ func (m *cmdPaletteModel) filterCommands() {
 }
 
 const maxPaletteVisible = 10
+
+func (m cmdPaletteModel) viewCategoryTabs() string {
+	indent := "  "
+	maxWidth := m.width
+	if maxWidth < 30 {
+		maxWidth = 30
+	}
+
+	var lines []string
+	line := indent
+	lineLen := len(indent)
+
+	for i, cat := range m.categories {
+		var rendered string
+		if i == m.catIdx {
+			rendered = activeTabStyle.Render(cat)
+		} else {
+			rendered = inactiveTabStyle.Render(cat)
+		}
+		// +2 for padding added by tab styles, +1 for space separator
+		tabWidth := len(cat) + 2
+		if i > 0 {
+			tabWidth++ // space before tab
+		}
+
+		if lineLen+tabWidth > maxWidth && lineLen > len(indent) {
+			lines = append(lines, line)
+			line = indent + rendered
+			lineLen = len(indent) + len(cat) + 2
+		} else {
+			if lineLen > len(indent) {
+				line += " "
+				lineLen++
+			}
+			line += rendered
+			lineLen += len(cat) + 2
+		}
+	}
+	if line != indent {
+		lines = append(lines, line)
+	}
+
+	return strings.Join(lines, "\n")
+}
 
 func (m cmdPaletteModel) View() string {
 	w := m.width
@@ -149,12 +240,13 @@ func (m cmdPaletteModel) viewWide(w int) string {
 
 	sep := dimStyle.Render(strings.Repeat("─", w))
 
-	// Input line
-	prompt := palettePromptStyle.Render(":")
-	inputText := statusValStyle.Render(m.input) + dimStyle.Render("▎")
 	b.WriteString(sep + "\n")
-	b.WriteString("  " + prompt + inputText + "\n")
+	b.WriteString("  " + palettePromptStyle.Render(":") + statusValStyle.Render(m.input) + dimStyle.Render("▎") + "\n")
 	b.WriteString(sep + "\n")
+
+	if len(m.categories) > 1 {
+		b.WriteString(m.viewCategoryTabs() + "\n")
+	}
 
 	if len(m.filtered) == 0 {
 		b.WriteString("  " + dimStyle.Render("No matching commands") + "\n")
@@ -165,7 +257,6 @@ func (m cmdPaletteModel) viewWide(w int) string {
 			b.WriteString(dimStyle.Render("  ↑ more") + "\n")
 		}
 
-		// Find max name width for alignment
 		maxNameWidth := 0
 		for i := start; i < end; i++ {
 			cmd := m.commands[m.filtered[i]]
@@ -175,22 +266,15 @@ func (m cmdPaletteModel) viewWide(w int) string {
 			}
 		}
 
-		nameStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("99")).
-			Bold(true).
-			Width(maxNameWidth + 2)
-
-		keyParenStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-		descStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255"))
-
-		selectedBg := lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+		keyParenStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+		descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+		selectedBg := lipgloss.NewStyle().Background(lipgloss.Color("236"))
 
 		for i := start; i < end; i++ {
 			cmd := m.commands[m.filtered[i]]
+			nameStyle := lipgloss.NewStyle().
+				Foreground(cmd.color).
+				Width(maxNameWidth + 2)
 			nameText := cmd.name + " " + keyParenStyle.Render("("+cmd.key+")")
 			row := nameStyle.Render(nameText) + "  " + descStyle.Render(cmd.desc)
 
@@ -206,7 +290,7 @@ func (m cmdPaletteModel) viewWide(w int) string {
 		}
 	}
 
-	b.WriteString(dimStyle.Render("↑/↓ navigate • enter run • esc close"))
+	b.WriteString(dimStyle.Render("↑/↓ navigate • ←/→ category • enter run • esc close"))
 
 	return b.String()
 }
@@ -216,12 +300,13 @@ func (m cmdPaletteModel) viewCompact(w int) string {
 
 	sep := dimStyle.Render(strings.Repeat("─", w))
 
-	// Input line
-	prompt := palettePromptStyle.Render(":")
-	inputText := statusValStyle.Render(m.input) + dimStyle.Render("▎")
 	b.WriteString(sep + "\n")
-	b.WriteString("  " + prompt + inputText + "\n")
+	b.WriteString("  " + palettePromptStyle.Render(":") + statusValStyle.Render(m.input) + dimStyle.Render("▎") + "\n")
 	b.WriteString(sep + "\n")
+
+	if len(m.categories) > 1 {
+		b.WriteString(m.viewCategoryTabs() + "\n")
+	}
 
 	if len(m.filtered) == 0 {
 		b.WriteString("  " + dimStyle.Render("No matching commands") + "\n")
@@ -232,21 +317,14 @@ func (m cmdPaletteModel) viewCompact(w int) string {
 			b.WriteString(dimStyle.Render("  ↑ more") + "\n")
 		}
 
-		nameStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("99")).
-			Bold(true)
-
-		keyParenStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-		descStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-		selectedBg := lipgloss.NewStyle().
-			Background(lipgloss.Color("236"))
+		keyParenStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+		descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+		selectedBg := lipgloss.NewStyle().Background(lipgloss.Color("236"))
 
 		for i := start; i < end; i++ {
 			cmd := m.commands[m.filtered[i]]
+			nameStyle := lipgloss.NewStyle().
+				Foreground(cmd.color)
 			nameText := nameStyle.Render(cmd.name) + " " + keyParenStyle.Render("("+cmd.key+")")
 			descText := "    " + descStyle.Render(cmd.desc)
 
@@ -258,9 +336,6 @@ func (m cmdPaletteModel) viewCompact(w int) string {
 				b.WriteString(descText + "\n")
 			}
 
-			if i < end-1 {
-				b.WriteString("\n")
-			}
 		}
 
 		if end < len(m.filtered) {
@@ -268,7 +343,7 @@ func (m cmdPaletteModel) viewCompact(w int) string {
 		}
 	}
 
-	b.WriteString(dimStyle.Render("↑/↓ • enter run • esc close"))
+	b.WriteString(dimStyle.Render("↑/↓ • ←/→ category • enter run • esc close"))
 
 	return b.String()
 }
@@ -294,86 +369,107 @@ func (m cmdPaletteModel) visibleWindow() (int, int) {
 
 // --- Command list builders ---
 
-func makeCommand(key, name, desc string, action func() tea.Msg) paletteCommand {
+// Semantic colors for command palette entries.
+var (
+	cmdColorCreate      = lipgloss.Color("42")  // green — create, start, connect, import
+	cmdColorModify      = lipgloss.Color("39")  // cyan — edit, info, attach, detach
+	cmdColorDestructive = lipgloss.Color("196") // red — destroy, delete, stop
+	cmdColorNav         = lipgloss.Color("252") // light gray — filter, refresh, quit, utility
+)
+
+func makeCommand(key, name, desc, category string, color lipgloss.Color, action func() tea.Msg) paletteCommand {
 	return paletteCommand{
-		key:    key,
-		name:   name,
-		desc:   desc,
-		filter: strings.ToLower(key + " " + name + " " + desc),
-		action: action,
+		key:      key,
+		name:     name,
+		desc:     desc,
+		filter:   strings.ToLower(key + " " + name + " " + desc),
+		color:    color,
+		category: category,
+		action:   action,
 	}
 }
+
+const (
+	catCreate  = "Create & Connect"
+	catModify  = "Modify & Inspect"
+	catDestroy = "Stop & Destroy"
+	catUtility = "Utility"
+)
 
 func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone bool) []paletteCommand {
 	var cmds []paletteCommand
 
-	cmds = append(cmds, makeCommand("n", "new-instance", "Start a new VM instance", func() tea.Msg {
+	// Create / start / connect (green)
+	cmds = append(cmds, makeCommand("n", "new-instance", "Start a new VM instance", catCreate, cmdColorCreate, func() tea.Msg {
 		return vmListActionMsg{action: actionLaunch}
 	}))
-
 	if len(vms) > 0 {
 		vm := vms[cursor]
-
-		cmds = append(cmds, makeCommand("e", "edit-instance", "Edit selected VM configuration", func() tea.Msg {
-			return vmListActionMsg{action: actionEdit, cfg: vm.cfg}
-		}))
-
-		cmds = append(cmds, makeCommand("i", "info", "View selected VM info", func() tea.Msg {
-			return vmListActionMsg{action: actionInfo, cfg: vm.cfg}
-		}))
-
-		cmds = append(cmds, makeCommand("s", "start-instance", "Start selected VM & connect tunnels", func() tea.Msg {
+		cmds = append(cmds, makeCommand("s", "start-instance", "Start selected VM & connect tunnels", catCreate, cmdColorCreate, func() tea.Msg {
 			return vmListActionMsg{action: actionStartTunnels, cfg: vm.cfg}
 		}))
-
-		cmds = append(cmds, makeCommand("x", "stop-instance", "Stop selected VM", func() tea.Msg {
-			return vmListActionMsg{action: actionStopTunnels, cfg: vm.cfg}
-		}))
-
 		if vm.status == "RUNNING" {
-			cmds = append(cmds, makeCommand("c", "connect", "Connect to selected VM through SSH", func() tea.Msg {
+			cmds = append(cmds, makeCommand("c", "connect", "Connect to selected VM through SSH", catCreate, cmdColorCreate, func() tea.Msg {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
 			}))
+		}
+	}
 
-			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach disk to selected VM", func() tea.Msg {
+	// Modify / inspect (cyan)
+	if len(vms) > 0 {
+		vm := vms[cursor]
+		cmds = append(cmds, makeCommand("e", "edit-instance", "Edit selected VM configuration", catModify, cmdColorModify, func() tea.Msg {
+			return vmListActionMsg{action: actionEdit, cfg: vm.cfg}
+		}))
+		cmds = append(cmds, makeCommand("i", "info", "View selected VM info", catModify, cmdColorModify, func() tea.Msg {
+			return vmListActionMsg{action: actionInfo, cfg: vm.cfg}
+		}))
+		if vm.status == "RUNNING" {
+			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach disk to selected VM", catModify, cmdColorModify, func() tea.Msg {
 				return vmListActionMsg{action: actionAttachDiskToVM, cfg: vm.cfg}
 			}))
 		}
-
 		if len(vm.attachedDiskCfg) > 0 {
-			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach disk from selected VM", func() tea.Msg {
+			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach disk from selected VM", catModify, cmdColorModify, func() tea.Msg {
 				return vmDetachDiskMsg{vmCfg: vm.cfg, diskCfgs: vm.attachedDiskCfg}
 			}))
 		}
+	}
 
-		cmds = append(cmds, makeCommand("D", "destroy-instance", "Destroy VM (careful - destructive)", func() tea.Msg {
+	// Destructive (red)
+	if len(vms) > 0 {
+		vm := vms[cursor]
+		cmds = append(cmds, makeCommand("x", "stop-instance", "Stop selected VM", catDestroy, cmdColorDestructive, func() tea.Msg {
+			return vmListActionMsg{action: actionStopTunnels, cfg: vm.cfg}
+		}))
+		cmds = append(cmds, makeCommand("X", "stop-all", "Stop all VMs & tunnels", catDestroy, cmdColorDestructive, func() tea.Msg {
+			return vmListActionMsg{action: actionStopAll}
+		}))
+		cmds = append(cmds, makeCommand("D", "destroy-instance", "Destroy VM (careful - destructive)", catDestroy, cmdColorDestructive, func() tea.Msg {
 			return vmListActionMsg{action: actionDestroy, cfg: vm.cfg}
+		}))
+	} else {
+		cmds = append(cmds, makeCommand("X", "stop-all", "Stop all VMs & tunnels", catDestroy, cmdColorDestructive, func() tea.Msg {
+			return vmListActionMsg{action: actionStopAll}
 		}))
 	}
 
-	cmds = append(cmds, makeCommand("X", "stop-all", "Stop all VMs & tunnels", func() tea.Msg {
-		return vmListActionMsg{action: actionStopAll}
-	}))
-
-	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", func() tea.Msg {
+	// Utility (light gray)
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteFilterMsg{}
 	}))
-
-	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", func() tea.Msg {
+	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabInstances}
 	}))
-
 	if bgRunning || progressDone {
-		cmds = append(cmds, makeCommand("p", "progress", "View background progress", func() tea.Msg {
+		cmds = append(cmds, makeCommand("p", "progress", "View background progress", catUtility, cmdColorNav, func() tea.Msg {
 			return cmdPaletteProgressMsg{}
 		}))
 	}
-
-	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Data Disks", func() tea.Msg {
+	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Data Disks", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
-
-	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", func() tea.Msg {
+	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()
 	}))
 
@@ -383,59 +479,58 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progressDone bool) []paletteCommand {
 	var cmds []paletteCommand
 
-	cmds = append(cmds, makeCommand("n", "new-disk", "Create a new disk", func() tea.Msg {
+	// Create / import (green)
+	cmds = append(cmds, makeCommand("n", "new-disk", "Create a new disk", catCreate, cmdColorCreate, func() tea.Msg {
 		return diskListActionMsg{action: actionDiskCreate}
 	}))
-
-	cmds = append(cmds, makeCommand("I", "import-disk", "Import existing disk", func() tea.Msg {
+	cmds = append(cmds, makeCommand("I", "import-disk", "Import existing disk", catCreate, cmdColorCreate, func() tea.Msg {
 		return diskListActionMsg{action: actionDiskImport}
 	}))
 
+	// Modify (cyan)
 	if len(disks) > 0 {
 		disk := disks[cursor]
-
-		cmds = append(cmds, makeCommand("e", "edit-disk", "Edit/resize selected disk", func() tea.Msg {
+		cmds = append(cmds, makeCommand("e", "edit-disk", "Edit/resize selected disk", catModify, cmdColorModify, func() tea.Msg {
 			return diskListActionMsg{action: actionDiskResize, disk: disk}
 		}))
-
 		if !(len(disk.status.Users) > 0 && disk.status.Mode == "READ_WRITE") {
-			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach selected disk to VM", func() tea.Msg {
+			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach selected disk to VM", catModify, cmdColorModify, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskAttach, disk: disk}
 			}))
 		}
-
 		if len(disk.status.Users) > 0 {
-			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach selected disk from VM", func() tea.Msg {
+			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach selected disk from VM", catModify, cmdColorModify, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskDetach, disk: disk}
 			}))
 		}
+	}
 
+	// Destructive (red)
+	if len(disks) > 0 {
+		disk := disks[cursor]
 		if len(disk.status.Users) == 0 {
-			cmds = append(cmds, makeCommand("D", "delete-disk", "Delete selected disk (careful - destructive)", func() tea.Msg {
+			cmds = append(cmds, makeCommand("D", "delete-disk", "Delete selected disk (careful - destructive)", catDestroy, cmdColorDestructive, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskDelete, disk: disk}
 			}))
 		}
 	}
 
-	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", func() tea.Msg {
+	// Utility (light gray)
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteFilterMsg{}
 	}))
-
-	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", func() tea.Msg {
+	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabDataDisks}
 	}))
-
 	if bgRunning || progressDone {
-		cmds = append(cmds, makeCommand("p", "progress", "View background progress", func() tea.Msg {
+		cmds = append(cmds, makeCommand("p", "progress", "View background progress", catUtility, cmdColorNav, func() tea.Msg {
 			return cmdPaletteProgressMsg{}
 		}))
 	}
-
-	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Instances", func() tea.Msg {
+	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Instances", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
-
-	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", func() tea.Msg {
+	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()
 	}))
 
