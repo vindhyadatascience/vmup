@@ -40,4 +40,8 @@ var (
 				Foreground(lipgloss.Color("241")).
 				Background(lipgloss.Color("236")).
 				Padding(0, 1)
+
+	palettePromptStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("99")).
+				Bold(true)
 )

@@ -40,7 +40,8 @@ type diskListModel struct {
 	resizeSeq int
 
 	// Help dialog
-	showHelp bool
+	showHelp    bool
+	hideHelpBar bool
 }
 
 // Messages
@@ -409,8 +410,10 @@ func (m diskListModel) ViewContent() string {
 		return b.String()
 	}
 
-	b.WriteString("\n")
-	b.WriteString(m.helpBar())
+	if !m.hideHelpBar {
+		b.WriteString("\n")
+		b.WriteString(m.helpBar())
+	}
 
 	return b.String()
 }
@@ -584,12 +587,12 @@ func (m diskListModel) viewCards() string {
 
 func (m diskListModel) helpBar() string {
 	if m.renderWidth >= 110 {
-		return dimStyle.Render("tab switch • ↑/↓ navigate • n new disk • I import • e resize • a attach • d detach • D delete • r refresh • q quit")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new disk • I import • e resize • a attach • d detach • D delete • r refresh • : command • q quit")
 	}
 	if m.renderWidth >= 60 {
-		return dimStyle.Render("tab switch • ↑/↓ navigate • n new • D delete • r refresh • q quit • ? help")
+		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D delete • r refresh • : command • q quit • ? help")
 	}
-	return dimStyle.Render("q quit • ? help")
+	return dimStyle.Render(": command • q quit • ? help")
 }
 
 func (m diskListModel) viewHelpDialog() string {
