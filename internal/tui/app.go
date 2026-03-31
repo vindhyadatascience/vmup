@@ -61,6 +61,9 @@ type App struct {
 	lastAttachOpts  diskAttachDoneMsg
 	detachInstance  *string
 
+	// Command palette
+	cmdPalette cmdPaletteModel
+
 	// Animated gradient (shared across tabs)
 	gradientOffset int
 
@@ -94,6 +97,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		if a.cmdPalette.active {
+			a.cmdPalette.width = msg.Width
+		}
 		// Propagate to both tab models so they have correct dimensions
 		var vmCmd, diskCmd tea.Cmd
 		a.vmlist, vmCmd = a.vmlist.Update(msg)
@@ -118,17 +124,68 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Always deliver resize debounce to disklist
 		a.disklist, _ = a.disklist.Update(msg)
 		return a, nil
+	case cmdPaletteExecMsg:
+		a.cmdPalette.Close()
+		return a, msg.action
+	case cmdPaletteSwitchTabMsg:
+		if a.activeTab == tabInstances {
+			a.activeTab = tabDataDisks
+		} else {
+			a.activeTab = tabInstances
+		}
+		return a, nil
+	case cmdPaletteRefreshMsg:
+		if msg.tab == tabInstances {
+			a.vmlist.loading = true
+			return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
+		}
+		a.disklist.loading = true
+		return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick)
+	case cmdPaletteProgressMsg:
+		if a.bgRunning {
+			a.screen = screenProgress
+			return a, a.progress.spinner.Tick
+		}
+		if a.progress.done {
+			a.screen = screenProgress
+			return a, nil
+		}
+		return a, nil
+	}
+
+	// Command palette — capture all keys when active
+	if a.screen == screenMain && a.cmdPalette.active {
+		if _, ok := msg.(tea.KeyMsg); ok {
+			var cmd tea.Cmd
+			a.cmdPalette, cmd = a.cmdPalette.Update(msg)
+			return a, cmd
+		}
 	}
 
 	// Tab switching — only on main screen
 	if a.screen == screenMain {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			switch keyMsg.String() {
-			case "tab":
-				if a.activeTab == tabInstances {
-					a.activeTab = tabDataDisks
-				} else {
-					a.activeTab = tabInstances
+			case ":":
+				a.vmlist.showHelp = false
+				a.disklist.showHelp = false
+				var commands []paletteCommand
+				switch a.activeTab {
+				case tabInstances:
+					commands = vmPaletteCommands(a.vmlist.vms, a.vmlist.cursor, a.bgRunning, a.progress.done)
+				case tabDataDisks:
+					commands = diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done)
+				}
+				a.cmdPalette.Open(commands, a.width)
+				return a, nil
+			case "tab", "right", "l":
+				if a.activeTab < tabDataDisks {
+					a.activeTab++
+				}
+				return a, nil
+			case "shift+tab", "left", "h":
+				if a.activeTab > tabInstances {
+					a.activeTab--
 				}
 				return a, nil
 			case "1":
@@ -362,6 +419,8 @@ func (a App) View() string {
 	case screenDiskDetachFromVM:
 		return a.diskDetachVM.View()
 	case screenMain:
+		a.vmlist.hideHelpBar = a.cmdPalette.active
+		a.disklist.hideHelpBar = a.cmdPalette.active
 		var b strings.Builder
 		b.WriteString(renderTitle(a.gradientOffset))
 		b.WriteString("\n\n")
@@ -375,6 +434,10 @@ func (a App) View() string {
 		}
 		if a.bgRunning {
 			b.WriteString("\n" + infoStyle.Render(fmt.Sprintf("⟳ %s (p to view)", a.bgTitle)))
+		}
+		if a.cmdPalette.active {
+			b.WriteString("\n")
+			b.WriteString(a.cmdPalette.View())
 		}
 		return b.String()
 	}
