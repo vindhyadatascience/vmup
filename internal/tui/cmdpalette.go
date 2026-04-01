@@ -37,6 +37,7 @@ type cmdPaletteExecMsg struct {
 type cmdPaletteSwitchTabMsg struct{}
 type cmdPaletteRefreshMsg struct{ tab tab }
 type cmdPaletteProgressMsg struct{}
+type cmdPaletteSettingsMsg struct{}
 type cmdPaletteFilterMsg struct {
 	args string // optional pre-filled filter args from ":filter prop term"
 }
@@ -500,6 +501,9 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Data Disks", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
+	cmds = append(cmds, makeCommand(",", "settings", "Configure vmup settings", catUtility, cmdColorNav, func() tea.Msg {
+		return cmdPaletteSettingsMsg{}
+	}))
 	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()
 	}))
@@ -560,6 +564,9 @@ func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progress
 	}
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Instances", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
+	}))
+	cmds = append(cmds, makeCommand(",", "settings", "Configure vmup settings", catUtility, cmdColorNav, func() tea.Msg {
+		return cmdPaletteSettingsMsg{}
 	}))
 	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()

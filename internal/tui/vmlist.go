@@ -961,6 +961,7 @@ func (m vmListModel) viewHelpDialog() string {
 		{"/", "Filter list"},
 		{"r", "Refresh"},
 		{"p", "View progress"},
+		{",", "Settings"},
 		{"q", "Quit"},
 		{"esc", "Clear filter / back"},
 	}

@@ -61,6 +61,9 @@ type App struct {
 	lastAttachOpts  diskAttachDoneMsg
 	detachInstance  *string
 
+	// Settings
+	settings settingsModel
+
 	// Command palette
 	cmdPalette cmdPaletteModel
 
@@ -173,6 +176,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		return a, nil
+	case cmdPaletteSettingsMsg:
+		a.settings = newSettingsModel(a.width)
+		a.screen = screenSettings
+		return a, a.settings.Init()
 	}
 
 	// Command palette — capture all keys when active
@@ -250,6 +257,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "2":
 					a.activeTab = tabDataDisks
 					return a, nil
+				}
+
+				// Intercept ',' key for settings screen (blocked during background ops)
+				if keyMsg.String() == "," && !a.bgRunning {
+					a.settings = newSettingsModel(a.width)
+					a.screen = screenSettings
+					return a, a.settings.Init()
 				}
 
 				// Intercept 'p' key for progress viewing regardless of active tab
@@ -402,6 +416,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd = a.updateDiskDetachScreen(msg)
 	case screenDiskDetachFromVM:
 		model, cmd = a.updateDiskDetachFromVMScreen(msg)
+	case screenSettings:
+		model, cmd = a.updateSettings(msg)
 	case screenMain:
 		// Forward spinner ticks to non-active tab if it's loading,
 		// so its spinner keeps running and doesn't freeze.
@@ -475,6 +491,8 @@ func (a App) View() string {
 		return a.viewDiskDetach()
 	case screenDiskDetachFromVM:
 		return a.diskDetachVM.View()
+	case screenSettings:
+		return a.settings.View()
 	case screenMain:
 		a.vmlist.hideHelpBar = a.cmdPalette.active
 		a.disklist.hideHelpBar = a.cmdPalette.active
@@ -642,6 +660,30 @@ func (a App) updateConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.editMode = false
 		a, cmd = a.refreshVMList()
 		return a, cmd
+	}
+
+	return a, cmd
+}
+
+// --- Settings ---
+
+func (a App) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.settings, cmd = a.settings.Update(msg)
+
+	switch msg.(type) {
+	case settingsDoneMsg:
+		// Refresh both lists since data directory may have changed
+		a.screen = screenMain
+		a.vmlist.loading = true
+		a.disklist.loading = true
+		return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick, loadDiskList, a.disklist.spinner.Tick)
+	case settingsCancelMsg:
+		// Refresh lists in case files were moved externally
+		a.screen = screenMain
+		a.vmlist.loading = true
+		a.disklist.loading = true
+		return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick, loadDiskList, a.disklist.spinner.Tick)
 	}
 
 	return a, cmd

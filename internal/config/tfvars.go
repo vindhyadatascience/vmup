@@ -48,7 +48,7 @@ func BaseDir() string {
 }
 
 func ProjectDir(vmName string) string {
-	return filepath.Join(BaseDir(), "projects", vmName)
+	return filepath.Join(DataDir(), "projects", vmName)
 }
 
 func LoadTFVars(path string) (Config, error) {
@@ -122,7 +122,7 @@ func WriteTFVars(path string, cfg Config) error {
 }
 
 func ListProjects() []string {
-	dir := filepath.Join(BaseDir(), "projects")
+	dir := filepath.Join(DataDir(), "projects")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -151,11 +151,11 @@ type DiskConfig struct {
 }
 
 func DiskDir(name string) string {
-	return filepath.Join(BaseDir(), "disks", name)
+	return filepath.Join(DataDir(), "disks", name)
 }
 
 func ListDisks() []string {
-	dir := filepath.Join(BaseDir(), "disks")
+	dir := filepath.Join(DataDir(), "disks")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
