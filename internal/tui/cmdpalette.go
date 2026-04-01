@@ -437,11 +437,11 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	}))
 	if len(vms) > 0 {
 		vm := vms[cursor]
-		cmds = append(cmds, makeCommand("s", "start-instance", "Start selected VM & connect tunnels", catCreate, cmdColorCreate, func() tea.Msg {
+		cmds = append(cmds, makeCommand("s", "start-instance", "Start VM & connect tunnels", catCreate, cmdColorCreate, func() tea.Msg {
 			return vmListActionMsg{action: actionStartTunnels, cfg: vm.cfg}
 		}))
 		if vm.status == "RUNNING" {
-			cmds = append(cmds, makeCommand("c", "connect", "Connect to selected VM through SSH", catCreate, cmdColorCreate, func() tea.Msg {
+			cmds = append(cmds, makeCommand("c", "connect", "Connect through SSH", catCreate, cmdColorCreate, func() tea.Msg {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
 			}))
 		}
@@ -450,19 +450,19 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	// Modify / inspect (cyan)
 	if len(vms) > 0 {
 		vm := vms[cursor]
-		cmds = append(cmds, makeCommand("e", "edit-instance", "Edit selected VM configuration", catModify, cmdColorModify, func() tea.Msg {
+		cmds = append(cmds, makeCommand("e", "edit-instance", "Edit VM configuration", catModify, cmdColorModify, func() tea.Msg {
 			return vmListActionMsg{action: actionEdit, cfg: vm.cfg}
 		}))
-		cmds = append(cmds, makeCommand("i", "info", "View selected VM info", catModify, cmdColorModify, func() tea.Msg {
+		cmds = append(cmds, makeCommand("i", "info", "View VM info", catModify, cmdColorModify, func() tea.Msg {
 			return vmListActionMsg{action: actionInfo, cfg: vm.cfg}
 		}))
 		if vm.status == "RUNNING" {
-			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach disk to selected VM", catModify, cmdColorModify, func() tea.Msg {
+			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach disk to VM", catModify, cmdColorModify, func() tea.Msg {
 				return vmListActionMsg{action: actionAttachDiskToVM, cfg: vm.cfg}
 			}))
 		}
 		if len(vm.attachedDiskCfg) > 0 {
-			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach disk from selected VM", catModify, cmdColorModify, func() tea.Msg {
+			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach disk from VM", catModify, cmdColorModify, func() tea.Msg {
 				return vmDetachDiskMsg{vmCfg: vm.cfg, diskCfgs: vm.attachedDiskCfg}
 			}))
 		}
@@ -471,13 +471,13 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	// Destructive (red)
 	if len(vms) > 0 {
 		vm := vms[cursor]
-		cmds = append(cmds, makeCommand("x", "stop-instance", "Stop selected VM", catDestroy, cmdColorDestructive, func() tea.Msg {
+		cmds = append(cmds, makeCommand("x", "stop-instance", "Stop VM", catDestroy, cmdColorDestructive, func() tea.Msg {
 			return vmListActionMsg{action: actionStopTunnels, cfg: vm.cfg}
 		}))
 		cmds = append(cmds, makeCommand("X", "stop-all", "Stop all VMs & tunnels", catDestroy, cmdColorDestructive, func() tea.Msg {
 			return vmListActionMsg{action: actionStopAll}
 		}))
-		cmds = append(cmds, makeCommand("D", "destroy-instance", "Destroy VM (careful - destructive)", catDestroy, cmdColorDestructive, func() tea.Msg {
+		cmds = append(cmds, makeCommand("D", "destroy-instance", "Destroy VM", catDestroy, cmdColorDestructive, func() tea.Msg {
 			return vmListActionMsg{action: actionDestroy, cfg: vm.cfg}
 		}))
 	} else {
@@ -487,24 +487,24 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	}
 
 	// Utility (light gray)
-	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteFilterMsg{}
 	}))
 	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabInstances}
 	}))
 	if bgRunning || progressDone {
-		cmds = append(cmds, makeCommand("p", "progress", "View background progress", catUtility, cmdColorNav, func() tea.Msg {
+		cmds = append(cmds, makeCommand("p", "progress", "View progress", catUtility, cmdColorNav, func() tea.Msg {
 			return cmdPaletteProgressMsg{}
 		}))
 	}
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Data Disks", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
-	cmds = append(cmds, makeCommand(",", "settings", "Configure vmup settings", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand(",", "settings", "Settings", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSettingsMsg{}
 	}))
-	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand("q", "quit", "Quit", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()
 	}))
 
@@ -525,16 +525,16 @@ func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progress
 	// Modify (cyan)
 	if len(disks) > 0 {
 		disk := disks[cursor]
-		cmds = append(cmds, makeCommand("e", "edit-disk", "Edit/resize selected disk", catModify, cmdColorModify, func() tea.Msg {
+		cmds = append(cmds, makeCommand("e", "edit-disk", "Resize disk", catModify, cmdColorModify, func() tea.Msg {
 			return diskListActionMsg{action: actionDiskResize, disk: disk}
 		}))
 		if !(len(disk.status.Users) > 0 && disk.status.Mode == "READ_WRITE") {
-			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach selected disk to VM", catModify, cmdColorModify, func() tea.Msg {
+			cmds = append(cmds, makeCommand("a", "attach-disk", "Attach disk to VM", catModify, cmdColorModify, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskAttach, disk: disk}
 			}))
 		}
 		if len(disk.status.Users) > 0 {
-			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach selected disk from VM", catModify, cmdColorModify, func() tea.Msg {
+			cmds = append(cmds, makeCommand("d", "detach-disk", "Detach disk from VM", catModify, cmdColorModify, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskDetach, disk: disk}
 			}))
 		}
@@ -544,31 +544,31 @@ func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progress
 	if len(disks) > 0 {
 		disk := disks[cursor]
 		if len(disk.status.Users) == 0 {
-			cmds = append(cmds, makeCommand("D", "delete-disk", "Delete selected disk (careful - destructive)", catDestroy, cmdColorDestructive, func() tea.Msg {
+			cmds = append(cmds, makeCommand("D", "delete-disk", "Delete disk", catDestroy, cmdColorDestructive, func() tea.Msg {
 				return diskListActionMsg{action: actionDiskDelete, disk: disk}
 			}))
 		}
 	}
 
 	// Utility (light gray)
-	cmds = append(cmds, makeCommand("/", "filter", "Filter list by property", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand("/", "filter", "Filter list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteFilterMsg{}
 	}))
 	cmds = append(cmds, makeCommand("r", "refresh", "Refresh list", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteRefreshMsg{tab: tabDataDisks}
 	}))
 	if bgRunning || progressDone {
-		cmds = append(cmds, makeCommand("p", "progress", "View background progress", catUtility, cmdColorNav, func() tea.Msg {
+		cmds = append(cmds, makeCommand("p", "progress", "View progress", catUtility, cmdColorNav, func() tea.Msg {
 			return cmdPaletteProgressMsg{}
 		}))
 	}
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Instances", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
-	cmds = append(cmds, makeCommand(",", "settings", "Configure vmup settings", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand(",", "settings", "Settings", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSettingsMsg{}
 	}))
-	cmds = append(cmds, makeCommand("q", "quit", "Quit/exit application", catUtility, cmdColorNav, func() tea.Msg {
+	cmds = append(cmds, makeCommand("q", "quit", "Quit", catUtility, cmdColorNav, func() tea.Msg {
 		return tea.Quit()
 	}))
 
