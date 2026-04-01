@@ -63,5 +63,5 @@ func formatElapsed(d time.Duration) string {
 	}
 	m := int(d.Minutes())
 	s := int(d.Seconds()) % 60
-	return fmt.Sprintf("%dm%ds", m, s)
+	return fmt.Sprintf("%dm %ds", m, s)
 }
