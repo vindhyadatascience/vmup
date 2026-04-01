@@ -163,7 +163,8 @@ func (m progressModel) View() string {
 		} else {
 			elapsedStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
 		}
-		b.WriteString(m.spinner.View() + " " + titleStyle.Render(m.title) + " " + dimStyle.Render("("+elapsedStr+")"))
+		inlineTitle := titleStyle.MarginBottom(0)
+		b.WriteString(m.spinner.View() + " " + inlineTitle.Render(m.title) + " " + dimStyle.Render("("+elapsedStr+")"))
 	}
 
 	b.WriteString("\n\n")
