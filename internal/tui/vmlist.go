@@ -937,38 +937,35 @@ func (m vmListModel) viewCards() string {
 }
 
 func (m vmListModel) helpBar() string {
-	if m.renderWidth >= 130 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new vm • e edit • i info • a attach disk • d detach disk • s start • x stop • X stop all • c ssh • D destroy • / filter • r refresh • : command • q quit")
-	}
-	if m.renderWidth >= 110 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • e edit • a attach • d detach • s start • x stop • c ssh • D destroy • / filter • r refresh • : command • q quit")
-	}
-	if m.renderWidth >= 60 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D destroy • / filter • r refresh • : command • q quit • ? help")
-	}
-	return dimStyle.Render("/ filter • : command • q quit • ? help")
+	return dimStyle.Render("↑/↓/←/→ navigate • : command • / filter • r refresh • ? help")
 }
 
 func (m vmListModel) viewHelpDialog() string {
 	commands := []struct{ key, desc string }{
-		{"↑/↓", "Navigate"},
+		{"↑/↓/j/k", "Navigate list"},
+		{"←/→/h/l", "Switch tabs"},
+		{"tab", "Next tab"},
+		{"shift+tab", "Previous tab"},
+		{"1/2", "Jump to tab"},
 		{"n", "New VM"},
 		{"e", "Edit VM"},
 		{"i", "VM info"},
+		{"s", "Start & tunnel"},
+		{"c", "SSH connect"},
 		{"a", "Attach disk"},
 		{"d", "Detach disk"},
-		{"s", "Start & tunnel"},
 		{"x", "Stop tunnels"},
 		{"X", "Stop all"},
-		{"c", "SSH connect"},
 		{"D", "Destroy VM"},
+		{":", "Command palette"},
 		{"/", "Filter list"},
 		{"r", "Refresh"},
-		{":", "Command palette"},
+		{"p", "View progress"},
 		{"q", "Quit"},
+		{"esc", "Clear filter / back"},
 	}
 
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true).Width(6)
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true).Width(12)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
 
 	var lines []string

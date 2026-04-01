@@ -812,32 +812,31 @@ func (m diskListModel) viewCards() string {
 }
 
 func (m diskListModel) helpBar() string {
-	if m.renderWidth >= 110 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new disk • I import • e resize • a attach • d detach • D delete • / filter • r refresh • : command • q quit")
-	}
-	if m.renderWidth >= 60 {
-		return dimStyle.Render("←/→ tabs • ↑/↓ navigate • n new • D delete • / filter • r refresh • : command • q quit • ? help")
-	}
-	return dimStyle.Render("/ filter • : command • q quit • ? help")
+	return dimStyle.Render("↑/↓/←/→ navigate • : command • / filter • r refresh • ? help")
 }
 
 func (m diskListModel) viewHelpDialog() string {
 	commands := []struct{ key, desc string }{
-		{"↑/↓", "Navigate"},
+		{"↑/↓/j/k", "Navigate list"},
+		{"←/→/h/l", "Switch tabs"},
+		{"tab", "Next tab"},
+		{"shift+tab", "Previous tab"},
+		{"1/2", "Jump to tab"},
 		{"n", "New disk"},
 		{"I", "Import existing"},
 		{"e", "Resize disk"},
 		{"a", "Attach to VM"},
 		{"d", "Detach from VM"},
 		{"D", "Delete disk"},
+		{":", "Command palette"},
 		{"/", "Filter list"},
 		{"r", "Refresh"},
-		{":", "Command palette"},
-		{"tab", "Switch tab"},
+		{"p", "View progress"},
 		{"q", "Quit"},
+		{"esc", "Clear filter / back"},
 	}
 
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true).Width(6)
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true).Width(12)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
 
 	var lines []string
