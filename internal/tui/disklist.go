@@ -319,6 +319,32 @@ func (m *diskListModel) recomputeFilter() {
 	}
 }
 
+func (m *diskListModel) applyFilterInput() {
+	raw := strings.TrimSpace(m.filterInput)
+	if raw == "" {
+		m.filterProp = ""
+		m.filterValue = ""
+		m.filteredIndices = nil
+	} else if strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") {
+		m.filterProp = ""
+		m.filterValue = strings.Trim(raw, "\"")
+		m.recomputeFilter()
+	} else {
+		parts := strings.SplitN(raw, " ", 2)
+		if len(parts) == 2 {
+			m.filterProp = strings.ToLower(parts[0])
+			m.filterValue = parts[1]
+		} else {
+			m.filterProp = ""
+			m.filterValue = parts[0]
+		}
+		m.recomputeFilter()
+	}
+	m.cursor = 0
+	m.scrollTop = 0
+	m.adjustScroll()
+}
+
 func (m diskListModel) viewFilterInput() string {
 	var b strings.Builder
 	w := m.renderWidth
@@ -392,40 +418,6 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 		// Filter input mode — capture all keys
 		if m.filterActive {
 			switch msg.Type {
-			case tea.KeyEnter:
-				m.filterActive = false
-				raw := strings.TrimSpace(m.filterInput)
-				if raw == "" {
-					m.filterProp = ""
-					m.filterValue = ""
-					m.filteredIndices = nil
-				} else if strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") {
-					m.filterProp = ""
-					m.filterValue = strings.Trim(raw, "\"")
-					m.recomputeFilter()
-				} else {
-					parts := strings.SplitN(raw, " ", 2)
-					if len(parts) == 2 {
-						m.filterProp = strings.ToLower(parts[0])
-						m.filterValue = parts[1]
-					} else {
-						m.filterProp = ""
-						m.filterValue = parts[0]
-					}
-					m.recomputeFilter()
-				}
-				m.cursor = 0
-				m.scrollTop = 0
-				m.adjustScroll()
-				return m, nil
-			case tea.KeyEscape, tea.KeyCtrlC:
-				m.filterActive = false
-				// Re-apply committed filter if any
-				m.recomputeFilter()
-				m.cursor = 0
-				m.scrollTop = 0
-				m.adjustScroll()
-				return m, nil
 			case tea.KeyBackspace:
 				if len(m.filterInput) > 0 {
 					m.filterInput = m.filterInput[:len(m.filterInput)-1]
@@ -438,18 +430,19 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 					m.cursor = 0
 					m.scrollTop = 0
 					m.adjustScroll()
+					return m, nil
 				}
-				return m, nil
 			case tea.KeyTab:
 				m.filterInput += " "
-				return m, nil
 			case tea.KeySpace:
 				m.filterInput += " "
-				return m, nil
 			case tea.KeyRunes:
 				m.filterInput += string(msg.Runes)
+			default:
 				return m, nil
 			}
+			// Apply filter dynamically on every change
+			m.applyFilterInput()
 			return m, nil
 		}
 
@@ -459,8 +452,8 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 			return m, nil
 		}
 
-		// Clear committed filter on Esc or Backspace
-		if (msg.Type == tea.KeyEscape || msg.Type == tea.KeyBackspace) && m.hasFilter() {
+		// Clear committed filter on Backspace
+		if msg.Type == tea.KeyBackspace && m.hasFilter() {
 			m.filterProp = ""
 			m.filterValue = ""
 			m.filteredIndices = nil
@@ -897,7 +890,7 @@ func (m diskListModel) viewHelpDialog() string {
 		{"p", "View progress"},
 		{",", "Settings"},
 		{"q", "Quit"},
-		{"esc", "Clear filter / back"},
+		{"esc", "Back"},
 	}
 
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true).Width(12)
