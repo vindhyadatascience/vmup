@@ -162,9 +162,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cmdPaletteRefreshMsg:
 		if msg.tab == tabInstances {
 			a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 			return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 		}
 		a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 		return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick)
 	case cmdPaletteProgressMsg:
 		if a.bgRunning {
@@ -312,6 +314,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					// Refresh VM list
 					a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 					return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 				} else if a.bgSourceTab == tabDataDisks {
 					if doneMsg.err != nil {
@@ -323,7 +326,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					// Refresh both lists (disk ops affect VM attachment display)
 					a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 					a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 					return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
 				}
 			}
@@ -499,7 +504,14 @@ func (a App) View() string {
 		var b strings.Builder
 		b.WriteString(renderTitle(a.gradientOffset))
 		b.WriteString("\n\n")
-		b.WriteString(renderTabBar(a.activeTab))
+		var lastRefreshed time.Time
+		switch a.activeTab {
+		case tabInstances:
+			lastRefreshed = a.vmlist.lastRefreshed
+		case tabDataDisks:
+			lastRefreshed = a.disklist.lastRefreshed
+		}
+		b.WriteString(renderTabBar(a.activeTab, a.width, lastRefreshed))
 		b.WriteString("\n\n")
 		switch a.activeTab {
 		case tabInstances:
@@ -676,13 +688,17 @@ func (a App) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh both lists since data directory may have changed
 		a.screen = screenMain
 		a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 		a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 		return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick, loadDiskList, a.disklist.spinner.Tick)
 	case settingsCancelMsg:
 		// Refresh lists in case files were moved externally
 		a.screen = screenMain
 		a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 		a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 		return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick, loadDiskList, a.disklist.spinner.Tick)
 	}
 
@@ -936,6 +952,7 @@ func (a App) refreshVMList() (App, tea.Cmd) {
 	a.screen = screenMain
 	a.activeTab = tabInstances
 	a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 	return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 }
 
@@ -973,6 +990,7 @@ func (a App) updateVMList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.action == actionAttachDiskToVM {
 			a.activeConfig = msg.cfg
 			a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 			a.vmlist.loadingText = "Loading available disks..."
 			return a, tea.Batch(a.vmlist.spinner.Tick, loadDisksForVM(msg.cfg))
 		}
@@ -1073,6 +1091,7 @@ func (a App) dispatchDiskAction(action diskAction, disk diskEntry) (tea.Model, t
 	case actionDiskAttach:
 		// Show spinner while checking running VMs
 		a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 		a.disklist.loadingText = "Checking running instances..."
 		a.activeDisk = disk
 		return a, tea.Batch(a.disklist.spinner.Tick, loadRunningVMs(disk))
@@ -1239,7 +1258,9 @@ func (a App) refreshDiskList() (App, tea.Cmd) {
 	a.screen = screenMain
 	a.activeTab = tabDataDisks
 	a.disklist.loading = true
+		a.disklist.refreshStart = time.Now()
 	a.vmlist.loading = true
+		a.vmlist.refreshStart = time.Now()
 	return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
 }
 

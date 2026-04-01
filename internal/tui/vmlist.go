@@ -32,6 +32,8 @@ type vmListModel struct {
 	flashMsg     string
 	flashIsError bool
 	tunnelMgr    *tunnel.Manager
+	lastRefreshed time.Time
+	refreshStart  time.Time
 
 	// Layout
 	layoutWidth int // debounced width — controls table vs card mode
@@ -91,12 +93,13 @@ func newVMListModel(tm *tunnel.Manager) vmListModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	return vmListModel{
-		loading:     true,
-		spinner:     s,
-		tunnelMgr:   tm,
-		layoutWidth: 114,
-		renderWidth: 114,
-		height:      40,
+		loading:      true,
+		refreshStart: time.Now(),
+		spinner:      s,
+		tunnelMgr:    tm,
+		layoutWidth:  114,
+		renderWidth:  114,
+		height:       40,
 	}
 }
 
@@ -416,6 +419,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 	case vmListLoadedMsg:
 		m.vms = msg.vms
 		m.loading = false
+		m.lastRefreshed = time.Now()
 		m.recomputeFilter()
 		if m.cursor >= m.displayCount() && m.displayCount() > 0 {
 			m.cursor = m.displayCount() - 1
@@ -534,6 +538,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 				return m, nil
 			case "r":
 				m.loading = true
+				m.refreshStart = time.Now()
 				return m, tea.Batch(loadVMList, m.spinner.Tick)
 			case "q", "ctrl+c":
 				return m, tea.Quit
@@ -733,7 +738,8 @@ func (m vmListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
+		elapsed := int(time.Since(m.refreshStart).Seconds())
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("q quit • ctrl+c quit"))
 		return b.String()
@@ -744,7 +750,8 @@ func (m vmListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
+		elapsed := int(time.Since(m.refreshStart).Seconds())
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
 		b.WriteString("\n\n")
 	}
 

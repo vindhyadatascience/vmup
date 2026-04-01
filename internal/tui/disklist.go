@@ -26,6 +26,8 @@ type diskListModel struct {
 	loading     bool
 	loadingText string // custom loading text, empty = default
 	spinner     spinner.Model
+	lastRefreshed time.Time
+	refreshStart  time.Time
 
 	flashMsg     string
 	flashIsError bool
@@ -88,11 +90,12 @@ func newDiskListModel() diskListModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	return diskListModel{
-		loading:     true,
-		spinner:     s,
-		layoutWidth: 114,
-		renderWidth: 114,
-		height:      40,
+		loading:      true,
+		refreshStart: time.Now(),
+		spinner:      s,
+		layoutWidth:  114,
+		renderWidth:  114,
+		height:       40,
 	}
 }
 
@@ -369,6 +372,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 	case diskListLoadedMsg:
 		m.disks = msg.disks
 		m.loading = false
+		m.lastRefreshed = time.Now()
 		m.recomputeFilter()
 		if m.cursor >= m.displayCount() && m.displayCount() > 0 {
 			m.cursor = m.displayCount() - 1
@@ -491,6 +495,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 				return m, nil
 			case "r":
 				m.loading = true
+				m.refreshStart = time.Now()
 				return m, tea.Batch(loadDiskList, m.spinner.Tick)
 			case "q", "ctrl+c":
 				return m, tea.Quit
@@ -614,7 +619,8 @@ func (m diskListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
+		elapsed := int(time.Since(m.refreshStart).Seconds())
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("q quit • ctrl+c quit"))
 		return b.String()
@@ -625,7 +631,8 @@ func (m diskListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(text))
+		elapsed := int(time.Since(m.refreshStart).Seconds())
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
 		b.WriteString("\n\n")
 	}
 
