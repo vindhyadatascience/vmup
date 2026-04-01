@@ -432,7 +432,7 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	var cmds []paletteCommand
 
 	// Create / start / connect (green)
-	cmds = append(cmds, makeCommand("n", "new-instance", "Start a new VM instance", catCreate, cmdColorCreate, func() tea.Msg {
+	cmds = append(cmds, makeCommand("n", "new-instance", "Create a new VM instance", catCreate, cmdColorCreate, func() tea.Msg {
 		return vmListActionMsg{action: actionLaunch}
 	}))
 	if len(vms) > 0 {
