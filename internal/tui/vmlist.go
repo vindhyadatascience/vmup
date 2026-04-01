@@ -739,14 +739,7 @@ func (m vmListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		elapsed := time.Since(m.refreshStart)
-		var elapsedStr string
-		if elapsed < time.Second {
-			elapsedStr = fmt.Sprintf("%dms", elapsed.Milliseconds())
-		} else {
-			elapsedStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
-		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%s)", text, elapsedStr)))
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%s)", text, formatElapsed(time.Since(m.refreshStart)))))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("q quit • ctrl+c quit"))
 		return b.String()
@@ -757,14 +750,7 @@ func (m vmListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		elapsed := time.Since(m.refreshStart)
-		var elapsedStr string
-		if elapsed < time.Second {
-			elapsedStr = fmt.Sprintf("%dms", elapsed.Milliseconds())
-		} else {
-			elapsedStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
-		}
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%s)", text, elapsedStr)))
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%s)", text, formatElapsed(time.Since(m.refreshStart)))))
 		b.WriteString("\n\n")
 	}
 

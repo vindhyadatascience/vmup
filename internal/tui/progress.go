@@ -22,9 +22,10 @@ type progressModel struct {
 	title      string
 	done       bool
 	err        error
-	userScroll bool // true if user has scrolled away from bottom
-	hScroll    int  // horizontal scroll offset
-	startTime  time.Time
+	userScroll   bool // true if user has scrolled away from bottom
+	hScroll      int  // horizontal scroll offset
+	startTime    time.Time
+	totalElapsed time.Duration
 }
 
 func newProgressModel(title string) progressModel {
@@ -87,6 +88,7 @@ func (m progressModel) Update(msg tea.Msg) (progressModel, tea.Cmd) {
 
 	case progressDoneMsg:
 		m.done = true
+		m.totalElapsed = time.Since(m.startTime)
 		m.err = msg.err
 		if msg.err != nil {
 			m.lines = append(m.lines, errorStyle.Width(m.viewport.Width).Render(fmt.Sprintf("\nError: %v", msg.err)))
@@ -150,21 +152,16 @@ func (m progressModel) View() string {
 	var b strings.Builder
 
 	if m.done {
+		ts := formatElapsed(m.totalElapsed)
 		if m.err != nil {
-			b.WriteString(errorStyle.Render("✗ " + m.title))
+			b.WriteString(errorStyle.Render("✗ "+m.title) + " " + dimStyle.Render("("+ts+")"))
 		} else {
-			b.WriteString(successStyle.Render("✓ " + m.title))
+			b.WriteString(successStyle.Render("✓ "+m.title) + " " + dimStyle.Render("("+ts+")"))
 		}
 	} else {
-		elapsed := time.Since(m.startTime)
-		var elapsedStr string
-		if elapsed < time.Second {
-			elapsedStr = fmt.Sprintf("%dms", elapsed.Milliseconds())
-		} else {
-			elapsedStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
-		}
+		ts := formatElapsed(time.Since(m.startTime))
 		inlineTitle := titleStyle.MarginBottom(0)
-		b.WriteString(m.spinner.View() + " " + inlineTitle.Render(m.title) + " " + dimStyle.Render("("+elapsedStr+")"))
+		b.WriteString(m.spinner.View() + " " + inlineTitle.Render(m.title) + " " + dimStyle.Render("("+ts+")"))
 	}
 
 	b.WriteString("\n\n")
