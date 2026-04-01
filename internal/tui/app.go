@@ -140,6 +140,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			args := strings.TrimSpace(paletteInput)
 			if strings.HasPrefix(args, "filter") {
 				args = strings.TrimSpace(args[len("filter"):])
+			} else {
+				args = "" // partial match like "fil" — no args
 			}
 			return a, func() tea.Msg { return cmdPaletteFilterMsg{args: args} }
 		}
