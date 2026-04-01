@@ -559,6 +559,7 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 			}
 		case "r":
 			m.loading = true
+			m.refreshStart = time.Now()
 			return m, tea.Batch(loadDiskList, m.spinner.Tick)
 		case "?":
 			m.showHelp = true

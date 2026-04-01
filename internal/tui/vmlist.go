@@ -622,6 +622,7 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 			}
 		case "r":
 			m.loading = true
+			m.refreshStart = time.Now()
 			return m, tea.Batch(loadVMList, m.spinner.Tick)
 		case "?":
 			m.showHelp = true
