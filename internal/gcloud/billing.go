@@ -15,12 +15,46 @@ type MachineTypeRate struct {
 }
 
 // Hardcoded fallback rates (us-central1, on-demand, as of 2025).
+// Fallback rates (us-central1, on-demand). Used when billing API is unavailable.
 var fallbackRates = map[string]MachineTypeRate{
-	"e2":  {VCPURate: 0.03351, MemoryRate: 0.004491},
-	"n2":  {VCPURate: 0.03510, MemoryRate: 0.004699},
-	"n2d": {VCPURate: 0.03060, MemoryRate: 0.004099},
-	"c3":  {VCPURate: 0.03710, MemoryRate: 0.004967},
-	"n1":  {VCPURate: 0.03322, MemoryRate: 0.004450},
+	// General purpose
+	"e2":  {VCPURate: 0.02181, MemoryRate: 0.002924},
+	"n1":  {VCPURate: 0.031611, MemoryRate: 0.004237},
+	"n2":  {VCPURate: 0.03161, MemoryRate: 0.009550},
+	"n2d": {VCPURate: 0.02750, MemoryRate: 0.000922},
+	"n4":  {VCPURate: 0.03275, MemoryRate: 0.003717},
+	"n4a": {VCPURate: 0.02778, MemoryRate: 0.006770},
+	"n4d": {VCPURate: 0.02911, MemoryRate: 0.000074},
+	// Compute optimized
+	"c2":  {VCPURate: 0.02956, MemoryRate: 0.003959}, // same as c2d
+	"c2d": {VCPURate: 0.02956, MemoryRate: 0.003959},
+	"c3":  {VCPURate: 0.03465, MemoryRate: 0.003938},
+	"c3d": {VCPURate: 0.02956, MemoryRate: 0.003959},
+	"c4":  {VCPURate: 0.00347, MemoryRate: 0.003938},
+	"c4a": {VCPURate: 0.03086, MemoryRate: 0.000350},
+	"c4d": {VCPURate: 0.03270, MemoryRate: 0.000350},
+	// Memory optimized
+	"m1":  {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m2":  {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m3":  {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m4":  {VCPURate: 0.00183, MemoryRate: 0.004570},
+	// Accelerator optimized
+	"a2":  {VCPURate: 0.01739, MemoryRate: 0.002330},
+	"a3":  {VCPURate: 0.01189, MemoryRate: 0.000952},
+	"g2":  {VCPURate: 0.02499, MemoryRate: 0.002927},
+	// Tau (ARM/AMD)
+	"t2a": {VCPURate: 0.02490, MemoryRate: 0.003400},
+	"t2d": {VCPURate: 0.02750, MemoryRate: 0.003686},
+	// Storage optimized
+	"h3":  {VCPURate: 0.04411, MemoryRate: 0.002960},
+	"h4d": {VCPURate: 0.00361, MemoryRate: 0.001288},
+	"z3":  {VCPURate: 0.04965, MemoryRate: 0.006655},
+}
+
+// Flat-rate instances (not per-vCPU/memory).
+var flatRateInstances = map[string]float64{
+	"f1-micro":  0.0076,
+	"g1-small":  0.0257,
 }
 
 var (
@@ -118,7 +152,21 @@ func fetchRatesFromAPI(region string) (map[string]MachineTypeRate, error) {
 				continue
 			}
 			group := strings.ToUpper(sku.Category.ResourceGroup)
-			if group != "CPU" && group != "RAM" {
+			descUp := strings.ToUpper(sku.Description)
+			isCPU := group == "CPU" || strings.Contains(group, "CORE") || strings.Contains(group, "VCPU") ||
+				(strings.Contains(descUp, "CORE") && !strings.Contains(descUp, "RAM"))
+			isRAM := group == "RAM" || strings.Contains(group, "MEMORY") ||
+				(strings.Contains(descUp, "RAM") && !strings.Contains(descUp, "CORE"))
+
+			// Handle non-standard resource groups (N1Standard, F1Micro, G1Small)
+			if !isCPU && !isRAM {
+				groupL := strings.ToLower(group)
+				if groupL == "n1standard" || groupL == "f1micro" || groupL == "g1small" {
+					isCPU = strings.Contains(descUp, "CORE") || strings.Contains(descUp, "VCPU") || strings.Contains(descUp, "CPU") || strings.Contains(descUp, "MICRO") || strings.Contains(descUp, "SMALL")
+					isRAM = strings.Contains(descUp, "RAM")
+				}
+			}
+			if !isCPU && !isRAM {
 				continue
 			}
 
@@ -141,7 +189,7 @@ func fetchRatesFromAPI(region string) (map[string]MachineTypeRate, error) {
 			if collected[family] == nil {
 				collected[family] = &rateEntry{}
 			}
-			if group == "CPU" {
+			if isCPU {
 				collected[family].vcpu = rate
 			} else {
 				collected[family].memory = rate
@@ -169,12 +217,21 @@ func fetchRatesFromAPI(region string) (map[string]MachineTypeRate, error) {
 }
 
 func skuMatchesRegion(sku skuEntry, region string) bool {
+	region = strings.ToLower(region)
 	for _, r := range sku.ServiceRegions {
+		r = strings.ToLower(r)
 		if r == region {
 			return true
 		}
-		// Some SKUs use broad regions like "us" or "americas"
-		if strings.HasPrefix(strings.ToLower(region), strings.ToLower(r)) {
+	}
+	// Fallback: accept broad regions like "us", "europe", "asia", "americas"
+	for _, r := range sku.ServiceRegions {
+		r = strings.ToLower(r)
+		if strings.HasPrefix(region, r) {
+			return true
+		}
+		// "americas" covers all US/SA regions
+		if r == "americas" && (strings.HasPrefix(region, "us") || strings.HasPrefix(region, "southamerica") || strings.HasPrefix(region, "northamerica")) {
 			return true
 		}
 	}
@@ -183,13 +240,46 @@ func skuMatchesRegion(sku skuEntry, region string) bool {
 
 func extractFamily(description string) string {
 	desc := strings.ToLower(description)
-	// Match known families from the description prefix
-	families := []string{"e2", "n2d", "n2", "n1", "c3d", "c3", "c4", "m3", "m2", "m1", "a2", "a3", "g2", "t2d", "t2a"}
-	for _, f := range families {
-		if strings.HasPrefix(desc, f+" ") {
-			return f
+
+	// Try to find a known machine family pattern anywhere in the description.
+	// SKU descriptions vary:
+	//   "E2 Instance Core running in Americas"
+	//   "N2D AMD Instance Core running in Americas"
+	//   "Compute optimized Instance Core running in Americas" (no family prefix)
+	for _, token := range strings.Fields(desc) {
+		if len(token) < 2 {
+			continue
+		}
+		// Must start with a letter and contain a digit (e.g., e2, n2d, c3, m1, a2, t2a, h3)
+		if token[0] < 'a' || token[0] > 'z' {
+			continue
+		}
+		hasDigit := false
+		allAlnum := true
+		for _, c := range token {
+			if c >= '0' && c <= '9' {
+				hasDigit = true
+			} else if c < 'a' || c > 'z' {
+				allAlnum = false
+				break
+			}
+		}
+		if hasDigit && allAlnum {
+			return token
 		}
 	}
+
+	// Handle descriptions without a family-prefixed token
+	if strings.Contains(desc, "memory-optimized") && !strings.Contains(desc, "m3") && !strings.Contains(desc, "m4") {
+		return "m1" // M1/M2 use generic "Memory-optimized" descriptions
+	}
+	if strings.Contains(desc, "micro instance") || strings.Contains(desc, "micro") {
+		return "f1"
+	}
+	if strings.Contains(desc, "small instance") {
+		return "g1"
+	}
+
 	return ""
 }
 
@@ -208,10 +298,19 @@ func extractHourlyRate(sku skuEntry) float64 {
 }
 
 // CalculateHourlyRate computes the estimated hourly cost for a machine type.
-func CalculateHourlyRate(family string, vcpus int, memoryGB float64, rates map[string]MachineTypeRate) float64 {
+// For flat-rate instances (f1-micro, g1-small), pass the full machine type name.
+func CalculateHourlyRate(machineType, family string, vcpus int, memoryGB float64, rates map[string]MachineTypeRate) float64 {
+	// Check flat-rate instances first
+	if flat, ok := flatRateInstances[machineType]; ok {
+		return flat
+	}
 	rate, ok := rates[family]
 	if !ok {
-		return 0
+		// Try fallback rates
+		rate, ok = fallbackRates[family]
+		if !ok {
+			return 0
+		}
 	}
 	return float64(vcpus)*rate.VCPURate + memoryGB*rate.MemoryRate
 }

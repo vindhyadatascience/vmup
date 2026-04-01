@@ -15,7 +15,7 @@ import (
 	"vds-gcp-launch-instance/internal/platform"
 )
 
-// --- Common machine types (hardcoded specs) ---
+// --- Common machine types (hardcoded specs, used as fallback) ---
 
 type machineSpec struct {
 	Name     string
@@ -31,8 +31,6 @@ var commonMachineTypes = []machineSpec{
 	{"e2-standard-4", 4, 16},
 }
 
-const seeMoreSentinel = "__see_more__"
-
 // --- Messages ---
 
 type configDoneMsg struct {
@@ -41,23 +39,19 @@ type configDoneMsg struct {
 
 type configCancelMsg struct{}
 
-type billingRatesMsg struct {
-	rates map[string]gcloud.MachineTypeRate
+type configDataReadyMsg struct {
+	rates        map[string]gcloud.MachineTypeRate
+	machineTypes []gcloud.MachineTypeInfo
+	gcpProject   string // detected from gcloud config
 }
 
-type machineTypesMsg struct {
-	types []gcloud.MachineTypeInfo
-	err   error
-}
-
-// --- Config phases ---
+// --- Phases ---
 
 type configPhase int
 
 const (
-	configPhaseLoading configPhase = iota // fetching billing rates
-	configPhaseForm                       // main form
-	configPhaseExpanding                  // fetching full machine type list
+	configPhaseLoading configPhase = iota
+	configPhaseForm
 )
 
 // --- Model ---
@@ -70,22 +64,19 @@ type configModel struct {
 	spinner spinner.Model
 	loadStart time.Time
 
-	// Pricing state
 	billingRates    map[string]gcloud.MachineTypeRate
 	allMachineTypes []gcloud.MachineTypeInfo
-	expandedList    bool
 }
 
 func newConfigModel() configModel {
 	username := platform.DetectUsername()
-	project := platform.DetectGCPProject()
 	ts := platform.GenerateTimestamp()
 	pw := platform.GeneratePassword()
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
-	m := configModel{
+	return configModel{
 		phase:     configPhaseLoading,
 		spinner:   s,
 		loadStart: time.Now(),
@@ -93,7 +84,7 @@ func newConfigModel() configModel {
 			Username:     username,
 			Password:     pw,
 			Timestamp:    ts,
-			ProjectID:    project,
+			ProjectID:    "", // filled by background fetch
 			VMName:       fmt.Sprintf("instance-%s", ts),
 			Image:        "vds-debian-13-base",
 			Region:       "us-central1",
@@ -103,8 +94,6 @@ func newConfigModel() configModel {
 			PortMapping:  "8787:8787",
 		},
 	}
-
-	return m
 }
 
 func newEditConfigModel(cfg config.Config) configModel {
@@ -122,11 +111,49 @@ func newEditConfigModel(cfg config.Config) configModel {
 
 func (m configModel) Init() tea.Cmd {
 	region := m.cfg.Region
+	projectID := m.cfg.ProjectID
+	zone := m.cfg.Zone
+	isNew := !m.isEdit
 	return tea.Batch(
 		m.spinner.Tick,
 		func() tea.Msg {
-			rates := gcloud.FetchComputeRates(region)
-			return billingRatesMsg{rates: rates}
+			type ratesResult struct {
+				rates map[string]gcloud.MachineTypeRate
+			}
+			type typesResult struct {
+				types []gcloud.MachineTypeInfo
+			}
+			type projectResult struct {
+				project string
+			}
+
+			ratesCh := make(chan ratesResult, 1)
+			typesCh := make(chan typesResult, 1)
+			projectCh := make(chan projectResult, 1)
+
+			go func() {
+				r := gcloud.FetchComputeRates(region)
+				ratesCh <- ratesResult{rates: r}
+			}()
+			go func() {
+				// For new VMs, projectID is empty — need to detect it first
+				pid := projectID
+				if pid == "" {
+					pid = platform.DetectGCPProject()
+				}
+				t, _ := gcloud.FetchMachineTypes(pid, zone)
+				typesCh <- typesResult{types: t}
+				projectCh <- projectResult{project: pid}
+			}()
+
+			rr := <-ratesCh
+			tr := <-typesCh
+			var gcpProject string
+			if isNew {
+				pr := <-projectCh
+				gcpProject = pr.project
+			}
+			return configDataReadyMsg{rates: rr.rates, machineTypes: tr.types, gcpProject: gcpProject}
 		},
 	)
 }
@@ -134,41 +161,25 @@ func (m configModel) Init() tea.Cmd {
 func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Only ctrl+c cancels — esc is handled by huh forms internally
 		if msg.String() == "ctrl+c" {
 			return m, func() tea.Msg { return configCancelMsg{} }
 		}
-		// Allow esc to cancel only during loading phases (no huh form active)
-		if msg.String() == "esc" && m.phase != configPhaseForm {
+		if msg.String() == "esc" && m.phase == configPhaseLoading {
 			return m, func() tea.Msg { return configCancelMsg{} }
 		}
 
-	case billingRatesMsg:
+	case configDataReadyMsg:
 		m.billingRates = msg.rates
-		if m.phase == configPhaseLoading {
-			// Rates loaded — build and show the form
-			m.phase = configPhaseForm
-			m.form = m.buildForm()
-			return m, m.form.Init()
-		}
-		// Rates arrived during expand — rebuild form with prices
-		if m.phase == configPhaseForm {
-			m.form = m.buildForm()
-			return m, m.form.Init()
-		}
-		return m, nil
-
-	case machineTypesMsg:
-		if msg.err == nil && len(msg.types) > 0 {
-			m.allMachineTypes = msg.types
-			m.expandedList = true
+		m.allMachineTypes = msg.machineTypes
+		if msg.gcpProject != "" && m.cfg.ProjectID == "" {
+			m.cfg.ProjectID = msg.gcpProject
 		}
 		m.phase = configPhaseForm
 		m.form = m.buildForm()
 		return m, m.form.Init()
 
 	case spinner.TickMsg:
-		if m.phase == configPhaseLoading || m.phase == configPhaseExpanding {
+		if m.phase == configPhaseLoading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -180,34 +191,12 @@ func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 		return m, nil
 	}
 
-	// Forward to huh form
 	form, cmd := m.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.form = f
 	}
 
 	if m.form.State == huh.StateCompleted {
-		// Check if "see more" was selected
-		if m.cfg.MachineType == seeMoreSentinel {
-			m.cfg.MachineType = commonMachineTypes[0].Name
-			m.phase = configPhaseExpanding
-			m.loadStart = time.Now()
-			projectID := m.cfg.ProjectID
-			zone := m.cfg.Zone
-			region := m.cfg.Region
-			return m, tea.Batch(
-				m.spinner.Tick,
-				func() tea.Msg {
-					types, err := gcloud.FetchMachineTypes(projectID, zone)
-					return machineTypesMsg{types: types, err: err}
-				},
-				func() tea.Msg {
-					rates := gcloud.FetchComputeRates(region)
-					return billingRatesMsg{rates: rates}
-				},
-			)
-		}
-
 		cfg := *m.cfg
 		return m, func() tea.Msg { return configDoneMsg{cfg: cfg} }
 	}
@@ -228,12 +217,7 @@ func (m configModel) View() string {
 	switch m.phase {
 	case configPhaseLoading:
 		ts := formatElapsed(time.Since(m.loadStart))
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render("Fetching pricing information... ("+ts+")"))
-		b.WriteString("\n\n")
-		b.WriteString(dimStyle.Render("esc/ctrl+c cancel"))
-	case configPhaseExpanding:
-		ts := formatElapsed(time.Since(m.loadStart))
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render("Loading all machine types... ("+ts+")"))
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render("Fetching pricing and machine types... ("+ts+")"))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("esc/ctrl+c cancel"))
 	case configPhaseForm:
@@ -249,12 +233,42 @@ func (m configModel) View() string {
 
 func (m *configModel) buildForm() *huh.Form {
 	if m.isEdit {
-		return m.buildEditForm()
+		return huh.NewForm(
+			huh.NewGroup(
+				huh.NewNote().
+					Title("Locked Settings").
+					Description(fmt.Sprintf(
+						"Project ID:  %s\nImage:       %s\nRegion:      %s\nZone:        %s\n\nThese settings cannot be changed because\nmodifying them would destroy and recreate the VM.",
+						m.cfg.ProjectID, m.cfg.Image, m.cfg.Region, m.cfg.Zone,
+					)).
+					Next(true).
+					NextLabel("Continue"),
+			),
+			huh.NewGroup(
+				huh.NewNote().
+					Title("VM Name").
+					Description(m.cfg.VMName),
+				huh.NewInput().
+					Title("Username").
+					Description("GCP username (part before @ in email)").
+					Value(&m.cfg.Username),
+				huh.NewSelect[string]().
+					Title("Machine Type").
+					Height(10).
+					Options(m.machineTypeOptions()...).
+					Value(&m.cfg.MachineType),
+				huh.NewInput().
+					Title("Boot Disk Size (GB)").
+					Description("OS and system files — destroyed with the VM").
+					Value(&m.cfg.BootDiskSize),
+				huh.NewInput().
+					Title("Port Mapping").
+					Description("Comma-separated local:remote (e.g. 8787:8787,2222:22)").
+					Value(&m.cfg.PortMapping),
+			),
+		).WithShowHelp(true).WithShowErrors(true)
 	}
-	return m.buildNewForm()
-}
 
-func (m *configModel) buildNewForm() *huh.Form {
 	return huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -290,6 +304,7 @@ func (m *configModel) buildNewForm() *huh.Form {
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Machine Type").
+				Height(10).
 				Options(m.machineTypeOptions()...).
 				Value(&m.cfg.MachineType),
 			huh.NewInput().
@@ -304,98 +319,48 @@ func (m *configModel) buildNewForm() *huh.Form {
 	).WithShowHelp(true).WithShowErrors(true)
 }
 
-func (m *configModel) buildEditForm() *huh.Form {
-	return huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().
-				Title("Locked Settings").
-				Description(fmt.Sprintf(
-					"Project ID:  %s\nImage:       %s\nRegion:      %s\nZone:        %s\n\nThese settings cannot be changed because\nmodifying them would destroy and recreate the VM.",
-					m.cfg.ProjectID, m.cfg.Image, m.cfg.Region, m.cfg.Zone,
-				)).
-				Next(true).
-				NextLabel("Continue"),
-		),
-		huh.NewGroup(
-			huh.NewNote().
-				Title("VM Name").
-				Description(m.cfg.VMName),
-			huh.NewInput().
-				Title("Username").
-				Description("GCP username (part before @ in email)").
-				Value(&m.cfg.Username),
-			huh.NewSelect[string]().
-				Title("Machine Type").
-				Options(m.machineTypeOptions()...).
-				Value(&m.cfg.MachineType),
-			huh.NewInput().
-				Title("Boot Disk Size (GB)").
-				Description("OS and system files — destroyed with the VM").
-				Value(&m.cfg.BootDiskSize),
-			huh.NewInput().
-				Title("Port Mapping").
-				Description("Comma-separated local:remote (e.g. 8787:8787,2222:22)").
-				Value(&m.cfg.PortMapping),
-		),
-	).WithShowHelp(true).WithShowErrors(true)
-}
-
-// --- Machine type option building ---
+// --- Machine type options ---
 
 func (m *configModel) machineTypeOptions() []huh.Option[string] {
-	var opts []huh.Option[string]
-	if m.expandedList && len(m.allMachineTypes) > 0 {
-		opts = m.buildExpandedOptions()
-	} else {
-		opts = m.buildCommonOptions()
-	}
-	if m.isEdit {
-		opts = ensureCurrentTypeInOptions(opts, m.cfg.MachineType)
-	}
-	return opts
-}
-
-func (m *configModel) buildCommonOptions() []huh.Option[string] {
-	var opts []huh.Option[string]
-	for _, mt := range commonMachineTypes {
-		label := formatMachineLabel(mt.Name, mt.VCPUs, mt.MemoryGB, m.billingRates)
-		opts = append(opts, huh.NewOption(label, mt.Name))
-	}
-	opts = append(opts, huh.NewOption("See more...", seeMoreSentinel))
-	return opts
-}
-
-func (m *configModel) buildExpandedOptions() []huh.Option[string] {
-	types := make([]gcloud.MachineTypeInfo, len(m.allMachineTypes))
-	copy(types, m.allMachineTypes)
-	sort.Slice(types, func(i, j int) bool {
-		fi := gcloud.MachineFamily(types[i].Name)
-		fj := gcloud.MachineFamily(types[j].Name)
-		if fi != fj {
-			return fi < fj
-		}
-		if types[i].GuestCpus != types[j].GuestCpus {
-			return types[i].GuestCpus < types[j].GuestCpus
-		}
-		return types[i].MemoryMB < types[j].MemoryMB
-	})
-
-	var opts []huh.Option[string]
-
 	commonSet := make(map[string]bool)
+	var opts []huh.Option[string]
+
+	// Common types first, starred
 	for _, mt := range commonMachineTypes {
 		commonSet[mt.Name] = true
 		label := "★ " + formatMachineLabel(mt.Name, mt.VCPUs, mt.MemoryGB, m.billingRates)
 		opts = append(opts, huh.NewOption(label, mt.Name))
 	}
 
-	for _, mt := range types {
-		if commonSet[mt.Name] {
-			continue
+	// All other types from API, sorted by family then vCPU
+	if len(m.allMachineTypes) > 0 {
+		types := make([]gcloud.MachineTypeInfo, len(m.allMachineTypes))
+		copy(types, m.allMachineTypes)
+		sort.Slice(types, func(i, j int) bool {
+			fi := gcloud.MachineFamily(types[i].Name)
+			fj := gcloud.MachineFamily(types[j].Name)
+			if fi != fj {
+				return fi < fj
+			}
+			if types[i].GuestCpus != types[j].GuestCpus {
+				return types[i].GuestCpus < types[j].GuestCpus
+			}
+			return types[i].MemoryMB < types[j].MemoryMB
+		})
+
+		for _, mt := range types {
+			if commonSet[mt.Name] {
+				continue
+			}
+			memGB := float64(mt.MemoryMB) / 1024.0
+			label := formatMachineLabel(mt.Name, mt.GuestCpus, memGB, m.billingRates)
+			opts = append(opts, huh.NewOption(label, mt.Name))
 		}
-		memGB := float64(mt.MemoryMB) / 1024.0
-		label := formatMachineLabel(mt.Name, mt.GuestCpus, memGB, m.billingRates)
-		opts = append(opts, huh.NewOption(label, mt.Name))
+	}
+
+	// Ensure current type is in list (edit mode with non-standard type)
+	if m.isEdit {
+		opts = ensureCurrentTypeInOptions(opts, m.cfg.MachineType)
 	}
 
 	return opts
@@ -413,7 +378,7 @@ func formatMachineLabel(name string, vcpus int, memGB float64, rates map[string]
 
 	if rates != nil {
 		family := gcloud.MachineFamily(name)
-		hourly := gcloud.CalculateHourlyRate(family, vcpus, memGB, rates)
+		hourly := gcloud.CalculateHourlyRate(name, family, vcpus, memGB, rates)
 		if hourly > 0 {
 			label += fmt.Sprintf(" ~$%.2f/hr", hourly)
 		}
