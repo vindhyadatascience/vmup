@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -23,6 +24,7 @@ type progressModel struct {
 	err        error
 	userScroll bool // true if user has scrolled away from bottom
 	hScroll    int  // horizontal scroll offset
+	startTime  time.Time
 }
 
 func newProgressModel(title string) progressModel {
@@ -33,9 +35,10 @@ func newProgressModel(title string) progressModel {
 	vp.SetContent("")
 
 	return progressModel{
-		spinner:  s,
-		viewport: vp,
-		title:    title,
+		spinner:   s,
+		viewport:  vp,
+		title:     title,
+		startTime: time.Now(),
 	}
 }
 
@@ -153,7 +156,14 @@ func (m progressModel) View() string {
 			b.WriteString(successStyle.Render("✓ " + m.title))
 		}
 	} else {
-		b.WriteString(m.spinner.View() + " " + titleStyle.Render(m.title))
+		elapsed := time.Since(m.startTime)
+		var elapsedStr string
+		if elapsed < time.Second {
+			elapsedStr = fmt.Sprintf("%dms", elapsed.Milliseconds())
+		} else {
+			elapsedStr = fmt.Sprintf("%.1fs", elapsed.Seconds())
+		}
+		b.WriteString(m.spinner.View() + " " + titleStyle.Render(m.title) + " " + dimStyle.Render("("+elapsedStr+")"))
 	}
 
 	b.WriteString("\n\n")
