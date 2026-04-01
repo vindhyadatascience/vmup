@@ -705,7 +705,7 @@ func gradientColor(t float64) lipgloss.Color {
 	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(r), int(g), int(b)))
 }
 
-const titleText = "vmup - 1.5.2 - GCP Instance Manager"
+const titleText = "vmup - 1.6.0 - GCP Instance Manager"
 const gradientCycleLen = 40
 
 func renderTitle(offset int) string {
