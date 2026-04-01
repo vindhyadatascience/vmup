@@ -101,7 +101,7 @@ func (m diskListModel) Init() tea.Cmd {
 }
 
 func loadDiskList() tea.Msg {
-	// Load all local disk configs first (local filesystem, fast)
+	// Load all local disk configs (filesystem, fast)
 	names := config.ListDisks()
 	var cfgs []config.DiskConfig
 	for _, name := range names {
@@ -113,18 +113,75 @@ func loadDiskList() tea.Msg {
 		cfgs = append(cfgs, cfg)
 	}
 
-	// Query all disk statuses concurrently
-	disks := make([]diskEntry, len(cfgs))
+	// Collect unique project IDs
+	projectSet := make(map[string]bool)
+	for _, cfg := range cfgs {
+		projectSet[cfg.ProjectID] = true
+	}
+
+	// Fetch disks and instances per project in parallel
+	type projectData struct {
+		disks     map[string]gcloud.DiskInfo
+		instances map[string]gcloud.InstanceInfo
+	}
+	projectResults := make(map[string]*projectData)
+	var mu sync.Mutex
 	var wg sync.WaitGroup
-	for i, cfg := range cfgs {
-		wg.Add(1)
-		go func(idx int, cfg config.DiskConfig) {
+
+	for project := range projectSet {
+		projectResults[project] = &projectData{}
+		wg.Add(2)
+
+		go func(p string) {
 			defer wg.Done()
-			status := gcloud.GetDiskStatus(cfg.Name, cfg.ProjectID, cfg.Zone)
-			disks[idx] = diskEntry{cfg: cfg, status: status}
-		}(i, cfg)
+			disks, err := gcloud.FetchDisksByProject(p)
+			if err != nil {
+				disks = make(map[string]gcloud.DiskInfo)
+			}
+			mu.Lock()
+			projectResults[p].disks = disks
+			mu.Unlock()
+		}(project)
+
+		go func(p string) {
+			defer wg.Done()
+			instances, err := gcloud.FetchInstancesByProject(p)
+			if err != nil {
+				instances = make(map[string]gcloud.InstanceInfo)
+			}
+			mu.Lock()
+			projectResults[p].instances = instances
+			mu.Unlock()
+		}(project)
 	}
 	wg.Wait()
+
+	// Build disk entries from batch results
+	disks := make([]diskEntry, len(cfgs))
+	for i, cfg := range cfgs {
+		status := gcloud.DiskStatus{Status: "UNKNOWN"}
+		if pd, ok := projectResults[cfg.ProjectID]; ok {
+			if info, ok := pd.disks[cfg.Name]; ok {
+				status = gcloud.DiskStatus{
+					Status:   info.Status,
+					Users:    info.Users,
+					SizeGB:   info.SizeGB,
+					DiskType: info.DiskType,
+				}
+				// Get attachment mode from instance data
+				if len(info.Users) > 0 {
+					if instInfo, ok := pd.instances[info.Users[0]]; ok {
+						for _, ad := range instInfo.Disks {
+							if ad.DiskName == cfg.Name {
+								status.Mode = ad.Mode
+							}
+						}
+					}
+				}
+			}
+		}
+		disks[i] = diskEntry{cfg: cfg, status: status}
+	}
 
 	return diskListLoadedMsg{disks: disks}
 }

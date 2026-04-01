@@ -105,41 +105,20 @@ func (m vmListModel) Init() tea.Cmd {
 }
 
 func loadVMList() tea.Msg {
-	// Load all local VM configs first (local filesystem, fast)
+	// Load all local VM configs (filesystem, fast)
 	names := config.ListProjects()
-	type vmCfgEntry struct {
-		cfg config.Config
-	}
-	cfgs := make([]vmCfgEntry, 0, len(names))
+	var vmCfgs []config.Config
 	for _, name := range names {
 		tfvarsPath := filepath.Join(config.ProjectDir(name), "terraform.tfvars")
 		cfg, err := config.LoadTFVars(tfvarsPath)
 		if err != nil {
 			continue
 		}
-		cfgs = append(cfgs, vmCfgEntry{cfg: cfg})
+		vmCfgs = append(vmCfgs, cfg)
 	}
 
-	// Query all VM statuses concurrently
-	vms := make([]vmEntry, len(cfgs))
-	var wg sync.WaitGroup
-	for i, c := range cfgs {
-		wg.Add(1)
-		go func(idx int, cfg config.Config) {
-			defer wg.Done()
-			status := gcloud.InstanceStatus(cfg.VMName, cfg.ProjectID, cfg.Zone)
-			vms[idx] = vmEntry{cfg: cfg, status: status}
-		}(i, c.cfg)
-	}
-	wg.Wait()
-
-	// Load disk configs and query all disk statuses concurrently
+	// Load all local disk configs (filesystem, fast)
 	diskNames := config.ListDisks()
-	type diskResult struct {
-		cfg    config.DiskConfig
-		status gcloud.DiskStatus
-	}
-	diskResults := make([]diskResult, 0, len(diskNames))
 	var diskCfgs []config.DiskConfig
 	for _, name := range diskNames {
 		tfvarsPath := filepath.Join(config.DiskDir(name), "terraform.tfvars")
@@ -150,32 +129,94 @@ func loadVMList() tea.Msg {
 		diskCfgs = append(diskCfgs, cfg)
 	}
 
-	diskResults = make([]diskResult, len(diskCfgs))
-	for i, cfg := range diskCfgs {
-		wg.Add(1)
-		go func(idx int, cfg config.DiskConfig) {
+	// Collect unique project IDs from both VMs and disks
+	projectSet := make(map[string]bool)
+	for _, cfg := range vmCfgs {
+		projectSet[cfg.ProjectID] = true
+	}
+	for _, cfg := range diskCfgs {
+		projectSet[cfg.ProjectID] = true
+	}
+
+	// Fetch instances and disks per project in parallel
+	type projectData struct {
+		instances map[string]gcloud.InstanceInfo
+		disks     map[string]gcloud.DiskInfo
+	}
+	projectResults := make(map[string]*projectData)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for project := range projectSet {
+		projectResults[project] = &projectData{}
+		wg.Add(2)
+
+		go func(p string) {
 			defer wg.Done()
-			status := gcloud.GetDiskStatus(cfg.Name, cfg.ProjectID, cfg.Zone)
-			diskResults[idx] = diskResult{cfg: cfg, status: status}
-		}(i, cfg)
+			instances, err := gcloud.FetchInstancesByProject(p)
+			if err != nil {
+				instances = make(map[string]gcloud.InstanceInfo)
+			}
+			mu.Lock()
+			projectResults[p].instances = instances
+			mu.Unlock()
+		}(project)
+
+		go func(p string) {
+			defer wg.Done()
+			disks, err := gcloud.FetchDisksByProject(p)
+			if err != nil {
+				disks = make(map[string]gcloud.DiskInfo)
+			}
+			mu.Lock()
+			projectResults[p].disks = disks
+			mu.Unlock()
+		}(project)
 	}
 	wg.Wait()
 
-	// Cross-reference attached disks to VMs
-	for _, dr := range diskResults {
-		for i := range vms {
-			for _, user := range dr.status.Users {
+	// Build VM entries with statuses from batch results
+	vms := make([]vmEntry, len(vmCfgs))
+	for i, cfg := range vmCfgs {
+		status := "UNKNOWN"
+		if pd, ok := projectResults[cfg.ProjectID]; ok {
+			if info, ok := pd.instances[cfg.VMName]; ok {
+				status = info.Status
+			}
+		}
+		vms[i] = vmEntry{cfg: cfg, status: status}
+	}
+
+	// Cross-reference attached disks to VMs using batch data
+	for _, cfg := range diskCfgs {
+		pd, ok := projectResults[cfg.ProjectID]
+		if !ok {
+			continue
+		}
+		diskInfo, ok := pd.disks[cfg.Name]
+		if !ok {
+			continue
+		}
+		for _, user := range diskInfo.Users {
+			for i := range vms {
 				if user == vms[i].cfg.VMName {
-					sizeGB := dr.cfg.SizeGB
-					if dr.status.SizeGB != "" {
-						sizeGB = dr.status.SizeGB
+					sizeGB := cfg.SizeGB
+					if diskInfo.SizeGB != "" {
+						sizeGB = diskInfo.SizeGB
 					}
+					// Get attachment mode from instance data
 					mode := "rw"
-					if dr.status.Mode == "READ_ONLY" {
-						mode = "ro"
+					if instPD, ok := projectResults[cfg.ProjectID]; ok {
+						if instInfo, ok := instPD.instances[user]; ok {
+							for _, ad := range instInfo.Disks {
+								if ad.DiskName == cfg.Name && ad.Mode == "READ_ONLY" {
+									mode = "ro"
+								}
+							}
+						}
 					}
-					vms[i].attachedDisks = append(vms[i].attachedDisks, fmt.Sprintf("%s (%s GB, %s)", dr.cfg.Name, sizeGB, mode))
-					vms[i].attachedDiskCfg = append(vms[i].attachedDiskCfg, dr.cfg)
+					vms[i].attachedDisks = append(vms[i].attachedDisks, fmt.Sprintf("%s (%s GB, %s)", cfg.Name, sizeGB, mode))
+					vms[i].attachedDiskCfg = append(vms[i].attachedDiskCfg, cfg)
 				}
 			}
 		}
