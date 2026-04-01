@@ -620,8 +620,8 @@ func (m diskListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		elapsed := int(time.Since(m.refreshStart).Seconds())
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
+		elapsed := time.Since(m.refreshStart).Milliseconds()
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%dms)", text, elapsed)))
 		b.WriteString("\n\n")
 		b.WriteString(dimStyle.Render("q quit • ctrl+c quit"))
 		return b.String()
@@ -632,8 +632,8 @@ func (m diskListModel) ViewContent() string {
 		if m.loadingText != "" {
 			text = m.loadingText
 		}
-		elapsed := int(time.Since(m.refreshStart).Seconds())
-		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%ds)", text, elapsed)))
+		elapsed := time.Since(m.refreshStart).Milliseconds()
+		b.WriteString(m.spinner.View() + " " + dimStyle.Render(fmt.Sprintf("%s (%dms)", text, elapsed)))
 		b.WriteString("\n\n")
 	}
 
