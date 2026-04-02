@@ -154,6 +154,8 @@ func (m *Manager) StartTunnel(cfg config.Config, pp config.PortPair) error {
 		"--tunnel-through-iap",
 		"--", "-L", fmt.Sprintf("%s:localhost:%s", pp.Local, pp.Remote),
 		"-N",
+		"-o", "ServerAliveInterval=30",
+		"-o", "ServerAliveCountMax=3",
 	}
 
 	cmd := exec.Command("gcloud", args...)
