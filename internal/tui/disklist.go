@@ -906,6 +906,7 @@ func (m diskListModel) viewHelpDialog() string {
 		{"p", "View progress"},
 		{",", "Settings"},
 		{"q", "Quit"},
+		{"ctrl+d", "Force quit"},
 		{"esc", "Back"},
 	}
 
