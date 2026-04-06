@@ -88,7 +88,7 @@ func (m statusModel) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("enter/b/esc/ctrl+c back • q quit"))
+	b.WriteString(dimStyle.Render("enter/b/esc/ctrl+c back • q/ctrl+d quit"))
 
 	return b.String()
 }
