@@ -50,7 +50,9 @@ type diskListModel struct {
 	filterInput     string
 	filterProp      string
 	filterValue     string
-	filteredIndices []int
+	filteredIndices  []int
+	savedFilterProp  string
+	savedFilterValue string
 }
 
 // Messages
@@ -432,6 +434,20 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 					m.adjustScroll()
 					return m, nil
 				}
+			case tea.KeyEnter:
+				// Commit: keep current dynamic filter, just exit filter mode
+				m.filterActive = false
+				return m, nil
+			case tea.KeyEscape, tea.KeyCtrlC:
+				// Cancel: restore previously committed filter
+				m.filterActive = false
+				m.filterProp = m.savedFilterProp
+				m.filterValue = m.savedFilterValue
+				m.recomputeFilter()
+				m.cursor = 0
+				m.scrollTop = 0
+				m.adjustScroll()
+				return m, nil
 			case tea.KeyTab:
 				m.filterInput += " "
 			case tea.KeySpace:
@@ -452,8 +468,8 @@ func (m diskListModel) Update(msg tea.Msg) (diskListModel, tea.Cmd) {
 			return m, nil
 		}
 
-		// Clear committed filter on Backspace
-		if msg.Type == tea.KeyBackspace && m.hasFilter() {
+		// Clear committed filter on Backspace or Esc
+		if (msg.Type == tea.KeyBackspace || msg.Type == tea.KeyEscape) && m.hasFilter() {
 			m.filterProp = ""
 			m.filterValue = ""
 			m.filteredIndices = nil

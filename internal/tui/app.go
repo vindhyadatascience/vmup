@@ -219,6 +219,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					switch a.activeTab {
 					case tabInstances:
 						a.vmlist.filterActive = true
+						a.vmlist.savedFilterProp = a.vmlist.filterProp
+						a.vmlist.savedFilterValue = a.vmlist.filterValue
 						if a.vmlist.hasFilter() {
 							a.vmlist.filterInput = strings.TrimSpace(a.vmlist.filterProp + " " + a.vmlist.filterValue)
 						} else {
@@ -231,6 +233,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						a.vmlist.adjustScroll()
 					case tabDataDisks:
 						a.disklist.filterActive = true
+						a.disklist.savedFilterProp = a.disklist.filterProp
+						a.disklist.savedFilterValue = a.disklist.filterValue
 						if a.disklist.hasFilter() {
 							a.disklist.filterInput = strings.TrimSpace(a.disklist.filterProp + " " + a.disklist.filterValue)
 						} else {
