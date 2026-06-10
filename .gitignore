@@ -7,3 +7,7 @@ terraform.tfstate.backup
 vmup
 vmup-*
 dist/
+
+# MkDocs
+site/
+.cache/

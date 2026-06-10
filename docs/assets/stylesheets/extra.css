@@ -1,0 +1,206 @@
+/* vmup brand palette — light scheme uses the purple/magenta logo palette,
+   dark scheme uses the indigo/sky variant. */
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #542f83;
+  --md-primary-fg-color--light: #6a3fa5;
+  --md-primary-fg-color--dark: #43266a;
+  --md-accent-fg-color: #b53694;
+  --md-default-bg-color: #f4f3ee;
+  --md-typeset-a-color: #542f83;
+  --md-code-bg-color: #ecebe3;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #6f6fd6;
+  --md-primary-fg-color--light: #8a8ae0;
+  --md-primary-fg-color--dark: #5a5ac0;
+  --md-accent-fg-color: #5cb8e6;
+  --md-default-bg-color: #2f2f38;
+  --md-typeset-a-color: #8a8ae0;
+  --md-code-bg-color: #26262e;
+}
+
+/* Light scheme: cream header so the purple/magenta logo stands out
+   (a purple header swallowed the logo's purple) */
+[data-md-color-scheme="default"] .md-header,
+[data-md-color-scheme="default"] .md-tabs {
+  background-color: #f4f3ee;
+  color: #2b2b3a;
+}
+
+[data-md-color-scheme="default"] .md-header {
+  border-bottom: 1px solid rgba(43, 43, 58, 0.1);
+}
+
+[data-md-color-scheme="default"] .md-search__form {
+  background-color: rgba(43, 43, 58, 0.06);
+}
+
+[data-md-color-scheme="default"] .md-search__form:hover {
+  background-color: rgba(43, 43, 58, 0.12);
+}
+
+[data-md-color-scheme="default"] .md-search__input::placeholder,
+[data-md-color-scheme="default"] .md-search__icon {
+  color: rgba(43, 43, 58, 0.55);
+}
+
+/* Header bar stays purple in dark mode too (indigo reads washed-out there) */
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #3a3a4a;
+}
+
+/* The nav tabs sit in their own slim row below the header (the page title
+   slides into the header row on scroll, so inline tabs would collide with
+   it). Same background as the header keeps the two rows reading as one
+   block; the hairline moves below the tabs. */
+@media screen and (min-width: 76.25em) {
+  [data-md-color-scheme="default"] .md-header {
+    border-bottom: none;
+  }
+
+  [data-md-color-scheme="default"] .md-tabs {
+    border-bottom: 1px solid rgba(43, 43, 58, 0.1);
+  }
+
+  .md-tabs__link {
+    margin-top: 0.55rem;
+  }
+
+  .md-tabs {
+    line-height: 1.8;
+  }
+}
+
+/* Vindhya Data Science footer: brand accent bar across the top, centered
+   "Developed by" credit with contact line, then the copyright */
+.md-footer {
+  border-top: 0.2rem solid #b53694;
+  border-image: linear-gradient(90deg, #542f83, #b53694) 1;
+}
+
+.vmup-footer-credit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1rem 0 0.4rem;
+  text-align: center;
+  /* the credit and copyright are flex children of the footer-meta row;
+     full width stacks them and lets each center on its own line */
+  width: 100%;
+}
+
+/* "—— DEVELOPED BY ——" eyebrow: letterspaced caps with rule lines */
+.vmup-footer-devby {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--md-footer-fg-color--lighter);
+}
+
+.vmup-footer-devby::before,
+.vmup-footer-devby::after {
+  content: "";
+  width: 1.8rem;
+  height: 1px;
+  background: currentColor;
+}
+
+.vmup-footer-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--md-footer-fg-color);
+}
+
+.vmup-footer-name:hover {
+  color: var(--md-footer-fg-color);
+  text-decoration: underline;
+}
+
+.vmup-footer-contact {
+  font-size: 0.7rem;
+  color: var(--md-footer-fg-color--light);
+}
+
+.vmup-footer-contact a {
+  color: var(--md-footer-fg-color);
+  text-decoration: underline;
+}
+
+/* Center the copyright/generator lines to match the credit block */
+.md-footer-meta .md-copyright {
+  width: 100%;
+  text-align: center;
+}
+
+/* Mobile drawer: the primary-colored title bar hid the logo just like the
+   old purple header did — use the header colors instead */
+[data-md-color-scheme="default"] .md-nav--primary .md-nav__title {
+  background-color: #f4f3ee;
+  color: #2b2b3a;
+}
+
+[data-md-color-scheme="slate"] .md-nav--primary .md-nav__title {
+  background-color: #3a3a4a;
+  color: #ffffff;
+}
+
+/* Per-scheme logo/image swap (header logo and hero wordmark).
+   !important: Material's .md-logo img sets display:block at higher specificity */
+[data-md-color-scheme="default"] .vmup-only-dark,
+[data-md-color-scheme="slate"] .vmup-only-light {
+  display: none !important;
+}
+
+/* The icon SVGs have a tall viewBox — size by height. Reduced button
+   padding compensates for the larger-than-default logo (1.6rem vs 1.2rem)
+   so the header stays 2.4rem tall and the inline nav tabs center true. */
+.md-header__button.md-logo {
+  padding: 0.2rem;
+}
+
+.md-header__button.md-logo img {
+  height: 1.6rem;
+  width: auto;
+}
+
+/* Wordmark feel for the site title in the header */
+.md-header__topic {
+  font-family: var(--md-code-font-family);
+  font-weight: 700;
+}
+
+/* Two-tone wordmark: "vm" in header text color, "up" in the scheme accent.
+   Only the site-name topic (first child) is swapped; the second topic that
+   slides in with the page title on scroll is untouched. */
+.md-header__topic:first-child .md-ellipsis {
+  font-size: 0;
+}
+
+.md-header__topic:first-child .md-ellipsis::before,
+.md-header__topic:first-child .md-ellipsis::after {
+  font-size: 0.9rem;
+}
+
+.md-header__topic:first-child .md-ellipsis::before {
+  content: "vm";
+}
+
+.md-header__topic:first-child .md-ellipsis::after {
+  content: "up";
+  color: var(--md-accent-fg-color);
+}
+
+/* Pull the title up against the logo. Material's own margin rule carries a
+   [dir] prefix, so a bare .md-header__title selector loses to it. */
+.md-header .md-header__title {
+  margin-left: 0 !important;
+}

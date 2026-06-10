@@ -1,0 +1,86 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  <section class="vmup-home md-typeset">
+
+    <div class="vmup-hero">
+      <div class="vmup-hero-lockup" role="img" aria-label="vmup">
+        <span class="vmup-hero-rocket" aria-hidden="true">
+          <img class="vmup-only-light vmup-rocket-normal" src="{{ 'assets/logo/rocket-hero-light.svg' | url }}" alt="">
+          <img class="vmup-only-light vmup-rocket-boost" src="{{ 'assets/logo/rocket-hero-boost-light.svg' | url }}" alt="">
+          <img class="vmup-only-dark vmup-rocket-normal" src="{{ 'assets/logo/rocket-hero-dark.svg' | url }}" alt="">
+          <img class="vmup-only-dark vmup-rocket-boost" src="{{ 'assets/logo/rocket-hero-boost-dark.svg' | url }}" alt="">
+        </span>
+        <span class="vmup-hero-word" aria-hidden="true">vm<span class="vmup-hero-word-accent">up</span></span>
+      </div>
+      <p class="vmup-tagline">
+        Launch and manage GCP compute instances from your terminal.<br>
+        One binary. Embedded Terraform. IAP-only access.
+      </p>
+      <div class="vmup-install">
+        <pre id="vmup-install-cmd">curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
+  https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh</pre>
+        <button class="vmup-copy" data-copy-target="vmup-install-cmd" title="Copy to clipboard" aria-label="Copy install command">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 21H8V7h11m0-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-3-4H4a2 2 0 0 0-2 2v14h2V3h12V1Z"/></svg>
+        </button>
+      </div>
+      <div class="vmup-cta">
+        <a class="md-button md-button--primary" href="{{ 'getting-started/installation/' | url }}">Get started</a>
+        <a class="md-button" href="{{ 'usage/instances/' | url }}">Browse the docs</a>
+      </div>
+    </div>
+
+    <div class="vmup-terminal" role="img" aria-label="The vmup terminal interface showing instances in running, provisioning, and stopped states">
+      <div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
+      <pre class="vmup-terminal-body"><span class="t-title">vmup - 1.6.2 - GCP Instance Manager</span>
+
+ <span class="t-tab-active">1 Instances</span> <span class="t-tab">2 Data Disks</span>
+
+  <span class="t-header">VM Name          Project            Zone            Machine         Status</span>
+  <span class="t-dim">────────────────────────────────────────────────────────────────────────────</span>
+<span class="t-selected">&gt; rstudio-eric     my-gcp-project     us-central1-a   e2-highmem-2    <span class="t-running">RUNNING (1 tunnel)</span></span>
+  analysis-vm      my-gcp-project     us-central1-a   e2-highmem-4    <span class="t-running">RUNNING</span>
+  batch-runner     my-gcp-project     us-central1-a   e2-standard-4   <span class="t-orange">PROVISIONING</span>
+  archive-vm       my-gcp-project     us-central1-a   e2-medium       <span class="t-stopped">STOPPED</span>
+
+  <span class="t-dim">────────────────────────────────────────────────────────────────────────────</span>
+  <span class="t-key">Image:</span>         vds-debian-13-rstudio-4-5-3
+  <span class="t-key">Port Mapping:</span>  8787:8787
+  <span class="t-key">Boot Disk:</span>     20 GB
+  <span class="t-info">Tunnel active: http://localhost:8787 (PID 52114)</span>
+
+  <span class="t-dim">↑/↓ navigate • : command • / filter • r refresh • ? help • q quit</span></pre>
+    </div>
+
+    <div class="vmup-features">
+      <a class="vmup-card" href="{{ 'getting-started/installation/' | url }}">
+        <h3>One binary, zero setup</h3>
+        <p>A single static executable for macOS, Linux, and Windows. Terraform is downloaded automatically on first run — nothing else to install.</p>
+      </a>
+      <a class="vmup-card" href="{{ 'reference/infrastructure/' | url }}">
+        <h3>No public IPs, ever</h3>
+        <p>Every VM lives in an isolated VPC reachable only through Google's Identity-Aware Proxy. SSH and web traffic tunnel through IAP — nothing is exposed to the internet.</p>
+      </a>
+      <a class="vmup-card" href="{{ 'reference/configuration/' | url }}">
+        <h3>Live cost estimates</h3>
+        <p>Hourly pricing for your chosen machine type is fetched from the Cloud Billing API and shown before you launch, so there are no surprises.</p>
+      </a>
+      <a class="vmup-card" href="{{ 'usage/data-disks/' | url }}">
+        <h3>Persistent data disks</h3>
+        <p>Create, attach, resize, and share persistent disks that outlive your VMs. Destroy an instance without losing your data.</p>
+      </a>
+      <a class="vmup-card" href="{{ 'usage/command-palette-and-keys/' | url }}">
+        <h3>Command palette &amp; vim keys</h3>
+        <p>Drive everything from the keyboard: fuzzy-searchable command palette, vim-style navigation, and one-key actions for common operations.</p>
+      </a>
+      <a class="vmup-card" href="{{ 'usage/tunnels-and-ssh/' | url }}">
+        <h3>Tunnels that just work</h3>
+        <p>SSH tunnels for RStudio, Jupyter, or any service start automatically after provisioning and reconnect when you restart a VM.</p>
+      </a>
+    </div>
+
+  </section>
+{% endblock %}
+
+{% block content %}{% endblock %}
