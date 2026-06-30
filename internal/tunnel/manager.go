@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 type Manager struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 type DiskStatus struct {

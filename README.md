@@ -24,7 +24,7 @@ Then install vmup:
 
 ```bash
 curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
 ```
 
 **Using a GitHub token:**
@@ -32,7 +32,7 @@ curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
 ```
 
 ### Windows (PowerShell)
@@ -48,7 +48,7 @@ gh auth login
 Then install vmup:
 
 ```powershell
-& { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $h) }
+& { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $h) }
 ```
 
 **Using a GitHub token:**
@@ -56,7 +56,7 @@ Then install vmup:
 ```powershell
 $env:GITHUB_TOKEN = "ghp_your_token_here"
 $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $headers)
+iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $headers)
 ```
 
 ### From source
@@ -64,8 +64,8 @@ iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-ins
 1. Clone this repository:
 
    ```bash
-   git clone https://github.com/vindhyadatascience/vds-gcp-launch-instance.git
-   cd vds-gcp-launch-instance
+   git clone https://github.com/vindhyadatascience/vmup.git
+   cd vmup
    ```
 
 2. Build and run:

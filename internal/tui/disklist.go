@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vds-gcp-launch-instance/internal/config"
-	"vds-gcp-launch-instance/internal/gcloud"
+	"vmup/internal/config"
+	"vmup/internal/gcloud"
 )
 
 type diskEntry struct {

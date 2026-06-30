@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/hc-install/product"
 	"github.com/hashicorp/hc-install/releases"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 const terraformVersion = "1.12.1"

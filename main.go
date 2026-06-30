@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vds-gcp-launch-instance/internal/gcloud"
-	"vds-gcp-launch-instance/internal/tui"
+	"vmup/internal/gcloud"
+	"vmup/internal/tui"
 )
 
 func main() {

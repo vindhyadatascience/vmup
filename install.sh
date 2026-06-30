@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO="vindhyadatascience/vds-gcp-launch-instance"
+REPO="vindhyadatascience/vmup"
 BINARY="vmup"
 
 # Colors (if terminal supports them)
