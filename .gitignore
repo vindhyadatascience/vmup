@@ -1,9 +1,19 @@
+# Terraform
 *.tfvars
 .terraform
 .terraform.lock.hcl
-terraform.tfstate
-terraform.tfstate.backup
-# Go
+*.tfstate
+*.tfstate.*
+
+# Credentials / secrets (defense-in-depth — none are committed)
+.env
+.env.*
+*.pem
+*.key
+*-credentials.json
+service-account*.json
+
+# Go / build output
 vmup
 vmup-*
 dist/
@@ -11,3 +21,6 @@ dist/
 # MkDocs
 site/
 .cache/
+
+# Local tooling
+.claude/

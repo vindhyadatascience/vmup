@@ -19,66 +19,26 @@ switch ($arch) {
     default  { Write-Err "Unsupported architecture: $arch" }
 }
 
-# Detect auth method
-$useGh = $false
-$useToken = $false
-
-if (Get-Command gh -ErrorAction SilentlyContinue) {
-    $ghAuth = gh auth status 2>&1
-    if ($LASTEXITCODE -eq 0) { $useGh = $true }
-}
-if (-not $useGh -and $env:GITHUB_TOKEN) {
-    $useToken = $true
-}
-if (-not $useGh -and -not $useToken) {
-    Write-Err "This is a private repository. Install requires one of:
-  1. GitHub CLI (gh) - install from https://cli.github.com then run 'gh auth login'
-  2. GITHUB_TOKEN environment variable - set before running this script"
-}
-
 $archive = "${Binary}_windows_${arch}.tar.gz"
 $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "vmup-install-$([System.Guid]::NewGuid().ToString('N').Substring(0,8))"
 New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 
 try {
-    if ($useGh) {
-        # Use gh CLI (handles private repo auth automatically)
-        Write-Info "Fetching latest release via gh CLI..."
-        $tag = (gh release view --repo $Repo --json tagName -q '.tagName')
-        if (-not $tag) { Write-Err "Could not determine latest release." }
-        Write-Info "Latest release: $tag"
+    # Public repo — no authentication required.
+    $headers = @{ "User-Agent" = "vmup-installer" }
 
-        Write-Info "Downloading $archive..."
-        gh release download $tag --repo $Repo --pattern $archive --dir $tmpDir
-    } else {
-        # Use GITHUB_TOKEN
-        $headers = @{
-            "Authorization" = "Bearer $env:GITHUB_TOKEN"
-            "User-Agent"    = "vmup-installer"
-        }
-
-        Write-Info "Fetching latest release via GitHub API..."
-        try {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers $headers
-            $tag = $release.tag_name
-        } catch {
-            Write-Err "Could not determine latest release. Check your GITHUB_TOKEN permissions."
-        }
-        Write-Info "Latest release: $tag"
-
-        # Find the asset ID for our archive
-        $asset = $release.assets | Where-Object { $_.name -eq $archive }
-        if (-not $asset) { Write-Err "Asset '$archive' not found in release $tag." }
-
-        Write-Info "Downloading $archive..."
-        $archivePath = Join-Path $tmpDir $archive
-        $dlHeaders = @{
-            "Authorization" = "Bearer $env:GITHUB_TOKEN"
-            "Accept"        = "application/octet-stream"
-            "User-Agent"    = "vmup-installer"
-        }
-        Invoke-WebRequest -Uri $asset.url -OutFile $archivePath -Headers $dlHeaders -UseBasicParsing
+    Write-Info "Fetching latest release..."
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers $headers
+        $tag = $release.tag_name
+    } catch {
+        Write-Err "Could not determine the latest release of $Repo."
     }
+    Write-Info "Latest release: $tag"
+
+    Write-Info "Downloading $archive..."
+    $archivePath = Join-Path $tmpDir $archive
+    Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$archive" -OutFile $archivePath -Headers $headers -UseBasicParsing
 
     # Extract
     Write-Info "Extracting..."

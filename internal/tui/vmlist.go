@@ -11,9 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vmup/internal/config"
-	"vmup/internal/gcloud"
-	"vmup/internal/tunnel"
+	"github.com/vindhyadatascience/vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/gcloud"
+	"github.com/vindhyadatascience/vmup/internal/tunnel"
 )
 
 type vmEntry struct {

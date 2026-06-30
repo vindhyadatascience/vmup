@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/config"
 )
 
 type settingsPhase int
@@ -29,12 +29,13 @@ const (
 )
 
 type settingsModel struct {
-	phase    settingsPhase
-	form     *huh.Form
-	dataDir  *string
-	original string // canonicalized value when screen opened
-	err      string
-	width    int
+	phase        settingsPhase
+	form         *huh.Form
+	dataDir      *string
+	imageProject *string // optional GCP project to list custom images from
+	original     string  // canonicalized value when screen opened
+	err          string
+	width        int
 
 	// Summary/review/confirm phase
 	pendingDir              string
@@ -64,15 +65,17 @@ type settingsCancelMsg struct{}
 func newSettingsModel(width int) settingsModel {
 	current := config.DataDir()
 	dir := current
+	imageProject := config.LoadSettings().EffectiveImageProject()
 
 	m := settingsModel{
-		phase:    settingsPhaseForm,
-		dataDir:  &dir,
-		original: current,
-		width:    width,
+		phase:        settingsPhaseForm,
+		dataDir:      &dir,
+		imageProject: &imageProject,
+		original:     current,
+		width:        width,
 	}
 
-	m.form = rebuildSettingsForm(m.dataDir, width)
+	m.form = rebuildSettingsForm(m.dataDir, m.imageProject, width)
 	return m
 }
 
@@ -88,7 +91,7 @@ func (m settingsModel) Update(msg tea.Msg) (settingsModel, tea.Cmd) {
 			case settingsPhaseSummary:
 				m.phase = settingsPhaseForm
 				m.err = ""
-				m.form = rebuildSettingsForm(m.dataDir, m.width)
+				m.form = rebuildSettingsForm(m.dataDir, m.imageProject, m.width)
 				return m, m.form.Init()
 			case settingsPhaseReview:
 				m.summaryForm, m.summaryChoice = buildSummaryForm(m.width)
@@ -136,6 +139,14 @@ func (m settingsModel) updateForm(msg tea.Msg) (settingsModel, tea.Cmd) {
 	if m.form.State == huh.StateCompleted {
 		m.err = ""
 
+		// Persist the image-project setting independently of the data-directory
+		// migration flow below. Storing a pointer (even to "") marks it as
+		// explicitly configured so it no longer falls back to the shipped default.
+		ip := strings.TrimSpace(*m.imageProject)
+		s := config.LoadSettings()
+		s.ImageProject = &ip
+		_ = config.SaveSettings(s)
+
 		newDir := strings.TrimSpace(*m.dataDir)
 		if newDir == "" {
 			newDir = config.BaseDir()
@@ -152,12 +163,12 @@ func (m settingsModel) updateForm(msg tea.Msg) (settingsModel, tea.Cmd) {
 		newWithSep := newDir + string('/')
 		if strings.HasPrefix(newWithSep, oldWithSep) {
 			m.err = "New path cannot be inside the current data directory"
-			m.form = rebuildSettingsForm(m.dataDir, m.width)
+			m.form = rebuildSettingsForm(m.dataDir, m.imageProject, m.width)
 			return m, m.form.Init()
 		}
 		if strings.HasPrefix(oldWithSep, newWithSep) {
 			m.err = "New path cannot be a parent of the current data directory"
-			m.form = rebuildSettingsForm(m.dataDir, m.width)
+			m.form = rebuildSettingsForm(m.dataDir, m.imageProject, m.width)
 			return m, m.form.Init()
 		}
 
@@ -450,13 +461,17 @@ func buildSummaryForm(width int) (*huh.Form, *string) {
 	return f, &choice
 }
 
-func rebuildSettingsForm(dataDir *string, width int) *huh.Form {
+func rebuildSettingsForm(dataDir, imageProject *string, width int) *huh.Form {
 	f := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Data Directory").
 				Description("Where VM projects and disks are stored").
 				Value(dataDir),
+			huh.NewInput().
+				Title("Image Project (optional)").
+				Description("GCP project whose images are listed first when creating a VM; leave blank to show only standard public images").
+				Value(imageProject),
 		),
 	).WithShowHelp(true).WithShowErrors(true)
 	if width > 0 {

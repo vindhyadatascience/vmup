@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/config"
 )
 
 type statusModel struct {

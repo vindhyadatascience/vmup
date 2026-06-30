@@ -15,11 +15,13 @@ type PortPair struct {
 
 type Config struct {
 	Username     string
+	UserDomain   string // email domain for the IAP access grant (e.g. example.com)
 	Password     string
 	Timestamp    string
 	ProjectID    string
 	VMName       string
 	Image        string
+	ImageProject string // GCP project the selected image belongs to
 	Region       string
 	Zone         string
 	MachineType  string
@@ -75,13 +77,22 @@ func LoadTFVars(path string) (Config, error) {
 		kv[key] = val
 	}
 
+	// Legacy fallback: projects created before the image-project field existed
+	// have no "image-project" key; their images came from DefaultImageProject.
+	imageProject := kv["image-project"]
+	if imageProject == "" {
+		imageProject = DefaultImageProject
+	}
+
 	return Config{
 		Username:     kv["username"],
+		UserDomain:   kv["user-domain"],
 		Password:     kv["password"],
 		Timestamp:    kv["timestamp"],
 		ProjectID:    kv["project-id"],
 		VMName:       kv["vm-name"],
 		Image:        kv["image"],
+		ImageProject: imageProject,
 		Region:       kv["region"],
 		Zone:         kv["zone"],
 		MachineType:  kv["machine-type"],
@@ -102,11 +113,13 @@ func WriteTFVars(path string, cfg Config) error {
 
 	lines := []struct{ k, v string }{
 		{"username", cfg.Username},
+		{"user-domain", cfg.UserDomain},
 		{"password", cfg.Password},
 		{"timestamp", cfg.Timestamp},
 		{"project-id", cfg.ProjectID},
 		{"vm-name", cfg.VMName},
 		{"image", cfg.Image},
+		{"image-project", cfg.ImageProject},
 		{"region", cfg.Region},
 		{"zone", cfg.Zone},
 		{"machine-type", cfg.MachineType},

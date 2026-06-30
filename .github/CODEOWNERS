@@ -1,0 +1,13 @@
+# Code owners for vmup.
+#
+# Lines are matched last-to-first; the last matching pattern takes precedence.
+# Uncomment and replace with real GitHub usernames or teams to enable
+# automatic review requests. See:
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Default owners for everything in the repo:
+# *                 @vindhyadatascience/maintainers
+#
+# Area-specific owners:
+# /assets/          @vindhyadatascience/infra
+# /internal/tui/    @vindhyadatascience/frontend

@@ -12,52 +12,21 @@ That's it. Terraform is auto-installed on first run.
 
 ### macOS / Linux
 
-**Using GitHub CLI (recommended):**
-
-First, install the [GitHub CLI](https://cli.github.com) and authenticate:
-
 ```bash
-gh auth login
+curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
 ```
 
-Then install vmup:
+This downloads the latest release binary and installs it to `/usr/local/bin` (falling back to `~/.local/bin`).
 
-```bash
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
-```
-
-**Using a GitHub token:**
-
-```bash
-export GITHUB_TOKEN=ghp_your_token_here
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
-```
+> **macOS note:** binaries installed via the script run as-is. If you instead download a release archive from the browser, macOS Gatekeeper may flag the binary as from an unidentified developer; clear the quarantine flag with `xattr -d com.apple.quarantine ./vmup` (or right-click the binary in Finder → **Open**).
 
 ### Windows (PowerShell)
 
-**Using GitHub CLI (recommended):**
-
-First, install the [GitHub CLI](https://cli.github.com) and authenticate:
-
 ```powershell
-gh auth login
+irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 | iex
 ```
 
-Then install vmup:
-
-```powershell
-& { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $h) }
-```
-
-**Using a GitHub token:**
-
-```powershell
-$env:GITHUB_TOKEN = "ghp_your_token_here"
-$headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $headers)
-```
+This installs the latest release binary to `%LOCALAPPDATA%\vmup` and adds it to your user `PATH`.
 
 ### From source
 
@@ -130,7 +99,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), then creates a GitHub Release with the archives attached.
+This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), signs and notarizes the macOS binaries, and creates a GitHub Release with the archives and checksums attached.
+
+See [RELEASING.md](RELEASING.md) for the one-time macOS signing/notarization setup (Apple Developer ID certificate and App Store Connect API key).
 
 ## After Deployment
 
@@ -151,3 +122,9 @@ Create a classic Personal Access Token (PAT) from GitHub (https://github.com/set
 ```bash
 cat ~/.ghcr_token | docker login ghcr.io -u <username> --password-stdin
 ```
+
+## License
+
+vmup is licensed under the [Apache License 2.0](LICENSE). See the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files for details.
+
+Copyright 2026 Vindhya Data Science, Inc.

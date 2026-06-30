@@ -1,4 +1,4 @@
-module vmup
+module github.com/vindhyadatascience/vmup
 
 go 1.26.1
 
