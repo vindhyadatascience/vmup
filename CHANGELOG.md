@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-06-30
+
+### Fixed
+- Terraform could fail to install on first run with `unable to verify checksums
+  signature: openpgp: key expired`. Upgraded `hc-install` (v0.9.2 → v0.9.5),
+  which bundles a current HashiCorp signing key.
+
 ## [1.7.1] - 2026-06-30
 
 ### Fixed
