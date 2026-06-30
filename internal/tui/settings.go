@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 type settingsPhase int

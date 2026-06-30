@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$Repo = "vindhyadatascience/vds-gcp-launch-instance"
+$Repo = "vindhyadatascience/vmup"
 $Binary = "vmup"
 $InstallDir = Join-Path $env:LOCALAPPDATA "vmup"
 

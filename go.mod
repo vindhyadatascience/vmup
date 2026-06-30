@@ -1,4 +1,4 @@
-module vds-gcp-launch-instance
+module vmup
 
 go 1.26.1
 

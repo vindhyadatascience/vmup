@@ -14,10 +14,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"vds-gcp-launch-instance/internal/config"
-	"vds-gcp-launch-instance/internal/gcloud"
-	tf "vds-gcp-launch-instance/internal/terraform"
-	"vds-gcp-launch-instance/internal/tunnel"
+	"vmup/internal/config"
+	"vmup/internal/gcloud"
+	tf "vmup/internal/terraform"
+	"vmup/internal/tunnel"
 )
 
 type App struct {

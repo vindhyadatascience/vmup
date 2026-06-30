@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 type statusModel struct {

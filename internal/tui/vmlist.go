@@ -11,9 +11,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vds-gcp-launch-instance/internal/config"
-	"vds-gcp-launch-instance/internal/gcloud"
-	"vds-gcp-launch-instance/internal/tunnel"
+	"vmup/internal/config"
+	"vmup/internal/gcloud"
+	"vmup/internal/tunnel"
 )
 
 type vmEntry struct {

@@ -10,9 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"vds-gcp-launch-instance/internal/config"
-	"vds-gcp-launch-instance/internal/gcloud"
-	"vds-gcp-launch-instance/internal/platform"
+	"vmup/internal/config"
+	"vmup/internal/gcloud"
+	"vmup/internal/platform"
 )
 
 // --- Common machine types (hardcoded specs, used as fallback) ---

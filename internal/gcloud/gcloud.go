@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"vds-gcp-launch-instance/internal/config"
+	"vmup/internal/config"
 )
 
 func IsInstalled() bool {
