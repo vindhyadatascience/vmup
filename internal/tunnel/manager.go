@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/config"
 )
 
 type Manager struct {

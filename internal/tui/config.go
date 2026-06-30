@@ -10,9 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"vmup/internal/config"
-	"vmup/internal/gcloud"
-	"vmup/internal/platform"
+	"github.com/vindhyadatascience/vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/gcloud"
+	"github.com/vindhyadatascience/vmup/internal/platform"
 )
 
 // --- Common machine types (hardcoded specs, used as fallback) ---

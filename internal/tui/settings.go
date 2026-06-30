@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 
-	"vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/config"
 )
 
 type settingsPhase int

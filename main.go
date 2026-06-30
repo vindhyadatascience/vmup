@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"vmup/internal/gcloud"
-	"vmup/internal/tui"
+	"github.com/vindhyadatascience/vmup/internal/gcloud"
+	"github.com/vindhyadatascience/vmup/internal/tui"
 )
 
 func main() {

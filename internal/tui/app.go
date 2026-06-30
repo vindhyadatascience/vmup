@@ -14,10 +14,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"vmup/internal/config"
-	"vmup/internal/gcloud"
-	tf "vmup/internal/terraform"
-	"vmup/internal/tunnel"
+	"github.com/vindhyadatascience/vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/gcloud"
+	tf "github.com/vindhyadatascience/vmup/internal/terraform"
+	"github.com/vindhyadatascience/vmup/internal/tunnel"
 )
 
 type App struct {

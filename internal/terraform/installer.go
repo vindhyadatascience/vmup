@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/hc-install/product"
 	"github.com/hashicorp/hc-install/releases"
 
-	"vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/config"
 )
 
 const terraformVersion = "1.12.1"
