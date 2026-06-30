@@ -140,3 +140,9 @@ Create a classic Personal Access Token (PAT) from GitHub (https://github.com/set
 ```bash
 cat ~/.ghcr_token | docker login ghcr.io -u <username> --password-stdin
 ```
+
+## License
+
+vmup is licensed under the [Apache License 2.0](LICENSE). See the [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE) files for details.
+
+Copyright 2026 Vindhya Data Science, Inc.
