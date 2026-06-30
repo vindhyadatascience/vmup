@@ -86,9 +86,10 @@ The documentation site is built with [Material for MkDocs](https://squidfunk.git
 ```bash
 make docs-serve     # Live-reload preview at http://127.0.0.1:8000
 make docs-build     # Build the static site into ./site
-make docs-deploy    # Build and publish to the gh-pages branch
 make docs-clean     # Remove the built site
 ```
+
+Deployment is automated: the [Docs workflow](.github/workflows/docs.yml) builds the site and publishes it to GitHub Pages on every push to `main` that touches `docs/`, `overrides/`, or `mkdocs.yml`.
 
 ## Releasing
 

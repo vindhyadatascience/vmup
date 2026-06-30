@@ -1,6 +1,6 @@
 BINARY := vmup
 
-.PHONY: build run clean build-all docs-serve docs-build docs-deploy docs-clean
+.PHONY: build run clean build-all docs-serve docs-build docs-clean
 
 build:
 	go build -o $(BINARY) .
@@ -20,6 +20,8 @@ build-all:
 # --- Documentation (MkDocs Material via uv) ---
 # uvx runs mkdocs in an ephemeral, cached environment, so no global install
 # is required (the first run resolves and caches the dependencies).
+# Deployment is automated: the Docs workflow (.github/workflows/docs.yml)
+# publishes to GitHub Pages on every push to main that touches the docs.
 MKDOCS := uvx --with mkdocs-material mkdocs
 
 docs-serve:
@@ -27,9 +29,6 @@ docs-serve:
 
 docs-build:
 	$(MKDOCS) build --strict
-
-docs-deploy:
-	$(MKDOCS) gh-deploy --force
 
 docs-clean:
 	rm -rf site
