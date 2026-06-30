@@ -721,10 +721,16 @@ func gradientColor(t float64) lipgloss.Color {
 	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(r), int(g), int(b)))
 }
 
-const titleText = "vmup - 1.6.2 - GCP Instance Manager"
+// Version is the build version shown in the title bar. It is set from main at
+// startup (ldflags-injected at release time, "dev" for local builds) so the
+// displayed version always matches the release tag — the single source of
+// truth shared with `vmup --version`.
+var Version = "dev"
+
 const gradientCycleLen = 40
 
 func renderTitle(offset int) string {
+	titleText := fmt.Sprintf("vmup - %s - GCP Instance Manager", Version)
 	var b strings.Builder
 	for i, ch := range titleText {
 		if ch == ' ' {

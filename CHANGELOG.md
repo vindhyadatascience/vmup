@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-06-30
+
+### Fixed
+- The version shown in the app's title bar now matches the release version. It's
+  derived from the build version (the same source as `vmup --version`, injected
+  from the git tag) instead of a hand-maintained constant, so it can no longer
+  drift from the release.
+
 ## [1.7.0] - 2026-06-30
 
 First open-source release.

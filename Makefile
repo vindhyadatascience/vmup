@@ -1,9 +1,14 @@
 BINARY := vmup
 
+# Version stamped into local builds (releases are stamped by GoReleaser).
+# Derived from git so there is no version string to maintain by hand.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -X main.version=$(VERSION)
+
 .PHONY: build run clean build-all docs-serve docs-build docs-clean
 
 build:
-	go build -o $(BINARY) .
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
 
 run: build
 	./$(BINARY)
@@ -12,10 +17,10 @@ clean:
 	rm -f $(BINARY) $(BINARY)-*
 
 build-all:
-	GOOS=darwin GOARCH=amd64 go build -o $(BINARY)-darwin-amd64 .
-	GOOS=darwin GOARCH=arm64 go build -o $(BINARY)-darwin-arm64 .
-	GOOS=linux GOARCH=amd64 go build -o $(BINARY)-linux-amd64 .
-	GOOS=windows GOARCH=amd64 go build -o $(BINARY)-windows-amd64.exe .
+	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY)-darwin-amd64 .
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY)-darwin-arm64 .
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY)-linux-amd64 .
+	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY)-windows-amd64.exe .
 
 # --- Documentation (MkDocs Material via uv) ---
 # uvx runs mkdocs in an ephemeral, cached environment, so no global install

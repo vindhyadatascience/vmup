@@ -35,6 +35,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Share the build version with the TUI so the title bar matches --version.
+	tui.Version = version
+
 	app := tui.NewApp(embeddedMainTF, embeddedDiskTF, embeddedDiskDeletableTF)
 
 	p := tea.NewProgram(app, tea.WithAltScreen())
