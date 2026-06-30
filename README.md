@@ -12,52 +12,19 @@ That's it. Terraform is auto-installed on first run.
 
 ### macOS / Linux
 
-**Using GitHub CLI (recommended):**
-
-First, install the [GitHub CLI](https://cli.github.com) and authenticate:
-
 ```bash
-gh auth login
+curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
 ```
 
-Then install vmup:
-
-```bash
-curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
-```
-
-**Using a GitHub token:**
-
-```bash
-export GITHUB_TOKEN=ghp_your_token_here
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
-```
+This downloads the latest release binary and installs it to `/usr/local/bin` (falling back to `~/.local/bin`).
 
 ### Windows (PowerShell)
 
-**Using GitHub CLI (recommended):**
-
-First, install the [GitHub CLI](https://cli.github.com) and authenticate:
-
 ```powershell
-gh auth login
+irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 | iex
 ```
 
-Then install vmup:
-
-```powershell
-& { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $h) }
-```
-
-**Using a GitHub token:**
-
-```powershell
-$env:GITHUB_TOKEN = "ghp_your_token_here"
-$headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $headers)
-```
+This installs the latest release binary to `%LOCALAPPDATA%\vmup` and adds it to your user `PATH`.
 
 ### From source
 
