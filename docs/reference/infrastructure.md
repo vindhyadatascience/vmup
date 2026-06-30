@@ -41,6 +41,13 @@ This means:
 - Access control is your Google identity + IAM, not passwords or IP allowlists
 - Removing someone's IAP role instantly revokes their access
 
+!!! warning "VM account password"
+    The generated password from the launch form is applied on the VM by the startup
+    script and written to `~/.env` on the instance (so service logins like RStudio work).
+    Treat it as a convenience credential: change it with `sudo passwd <username>` after
+    first login. The VM is only reachable through your authenticated IAP tunnel, so the
+    password is not internet-exposed — but anyone with shell access can read `~/.env`.
+
 ## Resources per data disk
 
 A [data disk](../usage/data-disks.md) is a single `google_compute_disk` in its own
