@@ -1,0 +1,20 @@
+<div class="vmup-footer-credit">
+  <span class="vmup-footer-devby">Developed by</span>
+  <a class="vmup-footer-name" href="https://vindhyadatascience.com" target="_blank" rel="noopener" title="Vindhya Data Science">Vindhya Data Science</a>
+  <span class="vmup-footer-contact">
+    Contact us: <a href="mailto:info@vindhyadatascience.com">info@vindhyadatascience.com</a>
+  </span>
+</div>
+<div class="md-copyright">
+  {% if config.copyright %}
+    <div class="md-copyright__highlight">
+      {{ config.copyright }}
+    </div>
+  {% endif %}
+  {% if not config.extra.generator == false %}
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  {% endif %}
+</div>

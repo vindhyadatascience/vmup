@@ -18,5 +18,9 @@ vmup
 vmup-*
 dist/
 
+# MkDocs
+site/
+.cache/
+
 # Local tooling
 .claude/

@@ -1,0 +1,98 @@
+site_name: vmup
+site_description: A single-binary TUI for launching and managing GCP compute instances with embedded Terraform and IAP SSH tunneling
+site_url: https://vindhyadatascience.github.io/vmup/
+repo_url: https://github.com/vindhyadatascience/vmup
+repo_name: vindhyadatascience/vmup
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Vindhya Data Science, Inc. — Licensed under Apache-2.0
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/logo/logo-light.svg
+  favicon: assets/logo/favicon.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+extra_css:
+  - assets/stylesheets/extra.css
+  - assets/stylesheets/terminal.css
+  - assets/stylesheets/home.css
+
+extra_javascript:
+  - assets/javascripts/home.js
+
+plugins:
+  - search
+  - privacy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Prerequisites: getting-started/prerequisites.md
+      - Installation: getting-started/installation.md
+      - Your First VM: getting-started/first-vm.md
+  - Usage:
+      - Managing Instances: usage/instances.md
+      - Tunnels & SSH: usage/tunnels-and-ssh.md
+      - Data Disks: usage/data-disks.md
+      - Command Palette & Keys: usage/command-palette-and-keys.md
+      - Settings: usage/settings.md
+  - Reference:
+      - Configuration & Defaults: reference/configuration.md
+      - Infrastructure Created: reference/infrastructure.md
+      - Troubleshooting & FAQ: reference/troubleshooting.md

@@ -79,6 +79,18 @@ make build-all      # Cross-compile for darwin/amd64, darwin/arm64, linux/amd64
 make clean          # Remove built binaries
 ```
 
+## Documentation
+
+The documentation site is built with [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/). Building it requires [uv](https://docs.astral.sh/uv/) ([installation instructions](https://docs.astral.sh/uv/getting-started/installation/)) — `uv` runs MkDocs in an ephemeral, cached environment, so no global Python or pip install is needed.
+
+```bash
+make docs-serve     # Live-reload preview at http://127.0.0.1:8000
+make docs-build     # Build the static site into ./site
+make docs-clean     # Remove the built site
+```
+
+Deployment is automated: the [Docs workflow](.github/workflows/docs.yml) builds the site and publishes it to GitHub Pages on every push to `main` that touches `docs/`, `overrides/`, or `mkdocs.yml`.
+
 ## Releasing
 
 Releases are automated via [GoReleaser](https://goreleaser.com/) and GitHub Actions. To publish a new release, tag the commit and push:
