@@ -18,6 +18,8 @@ curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/instal
 
 This downloads the latest release binary and installs it to `/usr/local/bin` (falling back to `~/.local/bin`).
 
+> **macOS note:** binaries installed via the script run as-is. If you instead download a release archive from the browser, macOS Gatekeeper may flag the binary as from an unidentified developer; clear the quarantine flag with `xattr -d com.apple.quarantine ./vmup` (or right-click the binary in Finder → **Open**).
+
 ### Windows (PowerShell)
 
 ```powershell

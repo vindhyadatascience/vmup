@@ -64,9 +64,17 @@ You will produce five GitHub Actions secrets:
 In the repo: **Settings ▸ Secrets and variables ▸ Actions ▸ New repository
 secret**, add all five secrets from the table above.
 
-> Add these **before** pushing the next release tag — without them the signing
-> step fails. (For forks/local use, `goreleaser release --snapshot` signs
+> **Signing is optional.** Until these secrets are added, releases are
+> published **unsigned** (the signing step is skipped, not failed) — macOS users
+> who install via `install.sh` are unaffected; only those who download a release
+> archive in a browser hit Gatekeeper. Adding the secrets turns signing on with
+> no other change. (For forks/local use, `goreleaser release --snapshot` signs
 > ad-hoc and needs no credentials.)
+
+> Creating the Developer ID certificate (Step 1) requires the Apple Developer
+> account's **Account Holder** role — it cannot be done by Admins. If you are not
+> the Account Holder, generate the CSR yourself (Step 1a) and have the Account
+> Holder create the certificate from it, so the private key stays with you.
 
 ## Local testing
 
