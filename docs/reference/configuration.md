@@ -64,11 +64,13 @@ Persistent settings live in `~/.vmup/settings.json` and are editable from the
 
 !!! note "Image project access"
     When you create a VM, vmup lists images from your configured image project followed
-    by the standard public GCP images. If your account can't access the configured image
-    project, vmup shows a one-time notice, falls back to the standard images, and clears
-    the setting so it won't try again — so a first run on a fresh machine may briefly
-    report "no access to image project …". Set your own image project in **Settings** to
-    surface your custom images.
+    by the standard public GCP images. The setting ships preset to **`vds-infrastructure`**
+    (Vindhya Data Science's image project). If your account can't access it, vmup shows a
+    one-time *"no access to image project `vds-infrastructure`"* notice on the first run,
+    falls back to the standard images, and clears the setting so it won't try again. See
+    [Settings → Shipped default](../usage/settings.md#shipped-default-vds-infrastructure)
+    for the full behavior. Set your own image project in **Settings** to surface your
+    custom images.
 
 ## Cost estimates
 

@@ -69,8 +69,23 @@ It's persisted in `~/.vmup/settings.json`:
 }
 ```
 
-!!! note "Automatic fallback"
+!!! note "Access fallback"
     If your Google account can't access the configured image project, vmup shows a
     one-time notice the next time you create a VM, falls back to the standard public
-    images, and clears the setting so it won't try again. Set a project you have access
-    to (or leave it blank) to silence the notice.
+    images, and clears the setting so it won't try again.
+
+### Shipped default: `vds-infrastructure`
+
+Out of the box the Image Project is preset to **`vds-infrastructure`** — the image
+project maintained by [Vindhya Data Science](https://vindhyadatascience.com), which hosts
+the data-science / RStudio images vmup was originally built for.
+
+- **If you have access** (e.g. Vindhya users), those images appear at the top of the
+  picker automatically — nothing to configure.
+- **If you don't** (most users), the **first** time you create a VM you'll see a one-time
+  *"No access to image project `vds-infrastructure`"* notice. vmup then falls back to the
+  standard public GCP images and clears the preset, so every run after that shows only
+  the standard images. This is expected and harmless — you don't need to do anything.
+
+Set **Image Project** to a GCP project you have access to (or leave it blank) at any time
+to override or remove the default.
