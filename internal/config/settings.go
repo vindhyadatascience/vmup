@@ -12,6 +12,25 @@ import (
 
 type Settings struct {
 	DataDir string `json:"data_dir,omitempty"`
+
+	// ImageProject is an optional GCP project whose images are listed first
+	// (above the standard public images) in the VM-creation picker.
+	//
+	// Pointer semantics distinguish three states:
+	//   nil          → never configured; fall back to DefaultImageProject
+	//   pointer to "" → explicitly cleared; show only standard public images
+	//   pointer to p  → list images from project p
+	ImageProject *string `json:"image_project,omitempty"`
+}
+
+// EffectiveImageProject resolves the configured image project, applying the
+// shipped default when the setting has never been configured. An empty result
+// means "list only the standard public GCP images".
+func (s Settings) EffectiveImageProject() string {
+	if s.ImageProject == nil {
+		return DefaultImageProject
+	}
+	return *s.ImageProject
 }
 
 var (
