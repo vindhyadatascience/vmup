@@ -17,3 +17,6 @@ service-account*.json
 vmup
 vmup-*
 dist/
+
+# Local tooling
+.claude/
