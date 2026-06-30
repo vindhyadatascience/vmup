@@ -20,10 +20,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Signs and notarizes the macOS binaries on Linux (no macOS runner needed).
-      - name: Install quill
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/quill/main/install.sh | sh -s -- -b /usr/local/bin
-
+      # macOS signing/notarization is deferred — see RELEASING.md to activate it
+      # (adds a quill install step + binary_signs config + the QUILL_* secrets).
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -31,10 +29,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS Developer ID signing certificate (base64-encoded .p12 + its password)
-          QUILL_SIGN_P12: ${{ secrets.QUILL_SIGN_P12 }}
-          QUILL_SIGN_PASSWORD: ${{ secrets.QUILL_SIGN_PASSWORD }}
-          # App Store Connect API key for notarization (.p8 contents, key id, issuer id)
-          QUILL_NOTARY_KEY: ${{ secrets.QUILL_NOTARY_KEY }}
-          QUILL_NOTARY_KEY_ID: ${{ secrets.QUILL_NOTARY_KEY_ID }}
-          QUILL_NOTARY_ISSUER: ${{ secrets.QUILL_NOTARY_ISSUER }}
