@@ -2,6 +2,10 @@ variable "username" {
 	description = "Your GCP username (the part before the @ in your email)"
 }
 
+variable "user-domain" {
+	description = "Email domain used to grant IAP tunnel access (the part after the @)."
+}
+
 variable "password" {
 	description = "Configure your user account password (optional)"
 }
@@ -15,8 +19,11 @@ variable "vm-name" {
 }
 
 variable "image" {
-	default = "vds-debian-13-base"
-	description = "Which source image should be used (e.g. vds-debian-13-base, vds-debian-13-rstudio-4-5-3, etc.)"
+	description = "Name of the source image to boot from (within image-project)."
+}
+
+variable "image-project" {
+	description = "GCP project that hosts the source image (e.g. debian-cloud, or your own image project)."
 }
 
 variable "region" {
@@ -74,7 +81,7 @@ resource "google_compute_instance" "default" {
 		mode = "READ_WRITE"
 
 		initialize_params {
-			image = "https://www.googleapis.com/compute/v1/projects/vds-infrastructure/global/images/${var.image}"
+			image = "projects/${var.image-project}/global/images/${var.image}"
 			size  = var.boot-disk-size
 		}
 	}
@@ -163,5 +170,5 @@ resource "google_iap_tunnel_instance_iam_binding" "rstudio_iap_tunnel" {
 	zone     = var.zone
 	instance = google_compute_instance.default.name
 	role     = "roles/iap.tunnelResourceAccessor"
-	members  = ["user:${var.username}@vindhyadatascience.com"]
+	members  = ["user:${var.username}@${var.user-domain}"]
 }

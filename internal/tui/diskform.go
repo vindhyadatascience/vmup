@@ -8,8 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 
-	"vmup/internal/config"
-	"vmup/internal/platform"
+	"github.com/vindhyadatascience/vmup/internal/config"
+	"github.com/vindhyadatascience/vmup/internal/platform"
 )
 
 // --- Disk Create Form ---
