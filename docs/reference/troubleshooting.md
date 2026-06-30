@@ -83,5 +83,5 @@ data disks. Destroy VMs you won't use for a while — and keep your data on
 ## Where to get help
 
 Open an issue on
-[GitHub](https://github.com/vindhyadatascience/vds-gcp-launch-instance/issues) with the
+[GitHub](https://github.com/vindhyadatascience/vmup/issues) with the
 output from the progress screen (++p++) if the problem involves a Terraform operation.

@@ -22,7 +22,7 @@ download the latest release, verify your platform, and put the binary on your `P
 
     ```bash
     curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-      https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+      https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
     ```
 
     **Using a GitHub token**
@@ -30,7 +30,7 @@ download the latest release, verify your platform, and put the binary on your `P
     ```bash
     export GITHUB_TOKEN=ghp_your_token_here
     curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-      https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.sh | sh
+      https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
     ```
 
     The script detects your OS and architecture (Intel or Apple Silicon / arm64) and
@@ -50,7 +50,7 @@ download the latest release, verify your platform, and put the binary on your `P
     Then install vmup:
 
     ```powershell
-    & { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $h) }
+    & { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $h) }
     ```
 
     **Using a GitHub token**
@@ -58,7 +58,7 @@ download the latest release, verify your platform, and put the binary on your `P
     ```powershell
     $env:GITHUB_TOKEN = "ghp_your_token_here"
     $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-    iex (irm https://raw.githubusercontent.com/vindhyadatascience/vds-gcp-launch-instance/main/install.ps1 -Headers $headers)
+    iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $headers)
     ```
 
     The script installs to `%LOCALAPPDATA%\vmup` and adds that directory to your user
@@ -75,7 +75,7 @@ You should see the vmup menu. Press ++q++ to quit.
 ## Manual download
 
 Release archives are attached to each
-[GitHub release](https://github.com/vindhyadatascience/vds-gcp-launch-instance/releases)
+[GitHub release](https://github.com/vindhyadatascience/vmup/releases)
 and named `vmup_<os>_<arch>.tar.gz`:
 
 | Platform | Archive |
@@ -93,8 +93,8 @@ Extract the archive and place the `vmup` binary anywhere on your `PATH`.
 Requires [Go](https://go.dev/dl/):
 
 ```bash
-git clone https://github.com/vindhyadatascience/vds-gcp-launch-instance.git
-cd vds-gcp-launch-instance
+git clone https://github.com/vindhyadatascience/vmup.git
+cd vmup
 make build
 ./vmup
 ```

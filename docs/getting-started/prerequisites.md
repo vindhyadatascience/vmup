@@ -31,7 +31,7 @@ gcloud config set project YOUR_PROJECT_ID
 
 vmup is distributed from a **private** GitHub repository, so the installer needs to
 authenticate as someone with access to
-[`vindhyadatascience/vds-gcp-launch-instance`](https://github.com/vindhyadatascience/vds-gcp-launch-instance).
+[`vindhyadatascience/vmup`](https://github.com/vindhyadatascience/vmup).
 Either of these works:
 
 - **GitHub CLI (recommended)** — install the [`gh` CLI](https://cli.github.com) and run
