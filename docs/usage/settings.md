@@ -10,6 +10,10 @@ Press ++comma++ to open the settings screen.
   <span class="t-dim">Where VM projects and disks are stored</span>
   <span class="t-focus">/Users/you/.vmup▎               </span>
  
+  <span class="t-header">Image Project (optional)</span>
+  <span class="t-dim">GCP project whose images are listed first when creating a VM</span>
+  <span class="t-input">my-image-project                </span>
+ 
   <span class="t-btn">✓ Submit</span>  <span class="t-btn-dim">Cancel</span>
  
   <span class="t-dim">esc cancel</span></pre>
@@ -47,3 +51,26 @@ example a synced or backed-up directory, or a larger volume. The setting is pers
     that state moves with it — with **Switch only**, vmup won't see resources whose
     state stayed behind (they keep running in GCP regardless; see
     [Troubleshooting](../reference/troubleshooting.md#vmup-lost-track-of-a-vm)).
+
+## Image project
+
+The **Image Project** is an optional GCP project whose images are listed **first** —
+above the standard public GCP images, marked with ★ — in the image picker when you
+create a VM. Use it to surface your own custom images.
+
+- Leave it **blank** to show only the standard public GCP images (Debian, Ubuntu, etc.).
+- Set it to a project you have access to, and its images appear at the top of the picker.
+
+It's persisted in `~/.vmup/settings.json`:
+
+```json
+{
+  "image_project": "my-image-project"
+}
+```
+
+!!! note "Automatic fallback"
+    If your Google account can't access the configured image project, vmup shows a
+    one-time notice the next time you create a VM, falls back to the standard public
+    images, and clears the setting so it won't try again. Set a project you have access
+    to (or leave it blank) to silence the notice.
