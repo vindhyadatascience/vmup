@@ -86,7 +86,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), then creates a GitHub Release with the archives attached.
+This triggers the Release workflow which cross-compiles binaries for macOS (amd64/arm64), Linux (amd64/arm64), and Windows (amd64), signs and notarizes the macOS binaries, and creates a GitHub Release with the archives and checksums attached.
+
+See [RELEASING.md](RELEASING.md) for the one-time macOS signing/notarization setup (Apple Developer ID certificate and App Store Connect API key).
 
 ## After Deployment
 

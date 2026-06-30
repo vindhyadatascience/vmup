@@ -19,6 +19,22 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
+# Sign and notarize the macOS binaries with quill (runs on Linux). Requires the
+# QUILL_SIGN_P12 / QUILL_SIGN_PASSWORD and QUILL_NOTARY_* env vars (set from
+# GitHub secrets in the release workflow); quill inherits them from the
+# environment. Snapshot builds sign ad-hoc so `goreleaser release --snapshot`
+# works without credentials.
+binary_signs:
+  - cmd: quill
+    args:
+      - "sign-and-notarize"
+      - "${artifact}"
+      - "--dry-run={{ .IsSnapshot }}"
+      - "--ad-hoc={{ .IsSnapshot }}"
+      - "-vv"
+    if: '{{ eq .Os "darwin" }}'
+    output: true
+
 archives:
   - formats:
       - tar.gz
