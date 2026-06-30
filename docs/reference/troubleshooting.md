@@ -2,12 +2,6 @@
 
 ## Installation
 
-### `gh: command not found` or auth errors during install
-
-The repository is private, so the installer must authenticate. Install the
-[GitHub CLI](https://cli.github.com) and run `gh auth login`, or export a
-`GITHUB_TOKEN` with `repo` scope. See [Installation](../getting-started/installation.md).
-
 ### `vmup: command not found` after installing
 
 - **macOS/Linux** — if the script fell back to `~/.local/bin`, make sure it's on your
@@ -27,9 +21,9 @@ detects missing credentials.
 ### IAP tunnel: permission denied
 
 Your Google account needs `roles/iap.tunnelResourceAccessor` on the instance. vmup
-grants this at launch to `<username>@vindhyadatascience.com` — check that the username
-you launched with matches your Vindhya identity, and that you're logged into the right
-Google account (`gcloud auth list`).
+grants this at launch to `<username>@<domain>`, both derived from your gcloud account —
+check that the username and domain you launched with match the Google account you're
+logged into (`gcloud auth list`), and that it has access to the project.
 
 ## Tunnels & connectivity
 

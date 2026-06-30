@@ -8,9 +8,10 @@ Every field in the launch form, with its default:
 | --- | --- | --- |
 | Project ID | auto-detected from `gcloud config get-value project` | GCP project to deploy into |
 | VM name | — | Lowercase letters, numbers, hyphens; also names the local state directory |
-| Username | your OS username | Account created on the VM |
+| Username | your gcloud account name (falls back to OS username) | Account created on the VM |
+| User domain | your gcloud account's email domain | Combined with the username to grant IAP access (`user:<username>@<domain>`) |
 | Password | auto-generated (30-char random hex) | For services like RStudio; change it on the VM with `sudo passwd` |
-| Image | `vds-debian-13-base` | Source images come from the `vds-infrastructure` project |
+| Image | first available image | Chosen from your configured **image project** (see [Settings](#settings)) plus the standard public GCP images |
 | Region | `us-central1` | |
 | Zone | `us-central1-a` | |
 | Machine type | `e2-highmem-2` | Live hourly cost estimate shown while choosing |
@@ -50,6 +51,24 @@ reopens the form with exactly what you launched with.
 Each VM and each disk is a fully isolated Terraform project — operations on one can
 never affect another. The Terraform configuration itself is embedded in the vmup binary
 (`go:embed`) and written out at launch time, so there is nothing to keep in sync.
+
+## Settings
+
+Persistent settings live in `~/.vmup/settings.json` and are editable from the
+**Settings** screen.
+
+| Setting | Description |
+| --- | --- |
+| Data directory | Where `projects/` and `disks/` are stored (default `~/.vmup`). Changing it can migrate existing projects/disks. |
+| Image project | Optional GCP project whose images are listed **first** (above the standard public images) when creating a VM. Leave blank to show only the standard public GCP images. |
+
+!!! note "Image project access"
+    When you create a VM, vmup lists images from your configured image project followed
+    by the standard public GCP images. If your account can't access the configured image
+    project, vmup shows a one-time notice, falls back to the standard images, and clears
+    the setting so it won't try again — so a first run on a fresh machine may briefly
+    report "no access to image project …". Set your own image project in **Settings** to
+    surface your custom images.
 
 ## Cost estimates
 

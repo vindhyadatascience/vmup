@@ -3,62 +3,26 @@
 vmup ships as a single static binary for macOS, Linux, and Windows. The install scripts
 download the latest release, verify your platform, and put the binary on your `PATH`.
 
-!!! note "Private repository"
-    Releases live in a private GitHub repository, so every install method requires GitHub
-    authentication — either the [`gh` CLI](https://cli.github.com) (recommended) or a
-    `GITHUB_TOKEN` with `repo` scope. See [Prerequisites](prerequisites.md).
-
 === "macOS / Linux"
 
-    **Using GitHub CLI (recommended)**
-
-    First authenticate with GitHub if you haven't already:
-
     ```bash
-    gh auth login
-    ```
-
-    Then install vmup:
-
-    ```bash
-    curl -fsSL -H "Authorization: Bearer $(gh auth token)" \
-      https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
-    ```
-
-    **Using a GitHub token**
-
-    ```bash
-    export GITHUB_TOKEN=ghp_your_token_here
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-      https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
+    curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh
     ```
 
     The script detects your OS and architecture (Intel or Apple Silicon / arm64) and
     installs to `/usr/local/bin` when writable, falling back to `~/.local/bin`. If it
     falls back, it warns when `~/.local/bin` is not on your `PATH`.
 
+    !!! note "macOS Gatekeeper"
+        Binaries installed via the script run as-is. If you instead download a release
+        archive from a browser, macOS may flag the binary as from an unidentified
+        developer; clear the quarantine flag with `xattr -d com.apple.quarantine ./vmup`
+        (or right-click the binary in Finder → **Open**).
+
 === "Windows (PowerShell)"
 
-    **Using GitHub CLI (recommended)**
-
-    First authenticate with GitHub if you haven't already:
-
     ```powershell
-    gh auth login
-    ```
-
-    Then install vmup:
-
-    ```powershell
-    & { $h = @{ Authorization = "Bearer $(gh auth token)" }; iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $h) }
-    ```
-
-    **Using a GitHub token**
-
-    ```powershell
-    $env:GITHUB_TOKEN = "ghp_your_token_here"
-    $headers = @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-    iex (irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 -Headers $headers)
+    irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 | iex
     ```
 
     The script installs to `%LOCALAPPDATA%\vmup` and adds that directory to your user

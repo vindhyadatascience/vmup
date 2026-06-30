@@ -21,11 +21,18 @@ launch form appears with sensible defaults already filled in:
 | --- | --- | --- |
 | Project ID | auto-detected from `gcloud config` | The GCP project to deploy into |
 | VM name | — | Lowercase letters, numbers, and hyphens |
-| Image | `vds-debian-13-base` | Source images from the `vds-infrastructure` project |
+| Image | first available image | Listed from your configured image project, then the standard public GCP images |
 | Region / Zone | `us-central1` / `us-central1-a` | |
 | Machine type | `e2-highmem-2` | A live **hourly cost estimate** is shown as you choose |
 | Boot disk size | `20` GB | |
 | Port mapping | `8787:8787` | Comma-separated `local:remote` pairs |
+
+!!! note "This example uses a custom RStudio image"
+    The screens below show a custom `my-rstudio-image` (an image with RStudio
+    preinstalled) surfaced through an
+    [image-project setting](../reference/configuration.md#settings). Without a custom
+    image project configured, the picker lists the standard public GCP images (Debian,
+    Ubuntu, etc.) — pick any of those to follow along.
 
 The cost estimate comes from the Cloud Billing API (with built-in fallback rates), so you
 see roughly what the machine costs per hour before anything is created.
@@ -40,10 +47,10 @@ see roughly what the machine costs per hour before anything is created.
  
   <span class="t-header">VM Name</span>
   <span class="t-dim">Must be lowercase, no underscores</span>
-  <span class="t-focus">rstudio-eric▎            </span>
+  <span class="t-focus">rstudio-demo▎            </span>
  
   <span class="t-header">Image</span>
-  vds-debian-13-rstudio-4-5-3 <span class="t-dim">▼</span>
+  my-rstudio-image <span class="t-dim">▼</span>
  
   <span class="t-header">Machine Type</span>
 <span class="t-selected">&gt; ★ e2-highmem-2 (2 vCPU, 16 GB)   <span class="t-running">~$0.12/hr</span></span>
@@ -75,7 +82,7 @@ system updates, so allow a couple of extra minutes before everything is responsi
 
 <div class="vmup-terminal">
 <div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
-<pre class="vmup-terminal-body"><span class="t-orange">◐</span> <span class="t-key">Launching rstudio-eric</span> <span class="t-dim">(1m 12s)</span>
+<pre class="vmup-terminal-body"><span class="t-orange">◐</span> <span class="t-key">Launching rstudio-demo</span> <span class="t-dim">(1m 12s)</span>
  
   <span class="t-dim">google_compute_network.vpc: Creation complete after 22s</span>
   <span class="t-dim">google_compute_subnetwork.subnet: Creation complete after 19s</span>
@@ -97,16 +104,16 @@ When the apply finishes, the status screen shows:
 <div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
 <pre class="vmup-terminal-body"><span class="t-key">VM Info</span>
  
-  <span class="t-running">Successfully launched rstudio-eric</span>
+  <span class="t-running">Successfully launched rstudio-demo</span>
  
-  <span class="t-key">VM Name:</span>       rstudio-eric
+  <span class="t-key">VM Name:</span>       rstudio-demo
   <span class="t-key">Project:</span>       my-gcp-project
   <span class="t-key">Zone:</span>          us-central1-a
   <span class="t-key">Machine:</span>       e2-highmem-2
-  <span class="t-key">Image:</span>         vds-debian-13-rstudio-4-5-3
+  <span class="t-key">Image:</span>         my-rstudio-image
   <span class="t-key">Boot Disk:</span>     20 GB
   <span class="t-key">Port Mapping:</span>  8787:8787
-  <span class="t-key">Username:</span>      eric
+  <span class="t-key">Username:</span>      demo
   <span class="t-key">Password:</span>      xR9kL2mP5nQ8vW
  
   <span class="t-info">Active Tunnels:</span>

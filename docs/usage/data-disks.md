@@ -25,7 +25,7 @@ the [instance list](instances.md).
  
   <span class="t-header">Disk Name        Project          Size     Zone            Type          Status     Attached To</span>
   <span class="t-dim">────────────────────────────────────────────────────────────────────────────────────────────────</span>
-<span class="t-selected">&gt; reference-data   my-gcp-project   100 GB   us-central1-a   pd-balanced   <span class="t-running">READY</span>      rstudio-eric</span>
+<span class="t-selected">&gt; reference-data   my-gcp-project   100 GB   us-central1-a   pd-balanced   <span class="t-running">READY</span>      rstudio-demo</span>
   scratch-disk     my-gcp-project   50 GB    us-central1-a   pd-ssd        <span class="t-running">READY</span>      —
   archive-disk     my-gcp-project   500 GB   us-central1-a   pd-standard   <span class="t-orange">CREATING</span>   —
   <span class="t-dim">────────────────────────────────────────────────────────────────────────────────────────────────</span>
@@ -35,7 +35,7 @@ the [instance list](instances.md).
   <span class="t-key">Type:</span>        pd-balanced
   <span class="t-key">Size:</span>        100 GB
   <span class="t-key">Status:</span>      <span class="t-running">READY</span>
-  <span class="t-key">Attached To:</span> rstudio-eric
+  <span class="t-key">Attached To:</span> rstudio-demo
  
   <span class="t-dim">↑/↓/←/→ navigate • : command • / filter • r refresh • ? help</span></pre>
 </div>
@@ -101,7 +101,7 @@ VM.
 
 <div class="vmup-terminal">
 <div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
-<pre class="vmup-terminal-body"><span class="t-key">Attach Disk to: rstudio-eric</span>
+<pre class="vmup-terminal-body"><span class="t-key">Attach Disk to: rstudio-demo</span>
  
   <span class="t-dim">Project: my-gcp-project • Zone: us-central1-a</span>
  

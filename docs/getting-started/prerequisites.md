@@ -1,7 +1,7 @@
 # Prerequisites
 
 vmup keeps its own dependencies to a minimum — Terraform is downloaded automatically on
-first run, so there are only two things you need before installing.
+first run, so there's really only one thing you need before installing.
 
 ## 1. Google Cloud SDK
 
@@ -26,17 +26,6 @@ gcloud config set project YOUR_PROJECT_ID
     Some features (live cost estimates, batch instance queries) use the Google Cloud APIs
     directly. If you see authentication errors inside vmup, run
     `gcloud auth application-default login`. vmup will prompt you when this is needed.
-
-## 2. GitHub access
-
-vmup is distributed from a **private** GitHub repository, so the installer needs to
-authenticate as someone with access to
-[`vindhyadatascience/vmup`](https://github.com/vindhyadatascience/vmup).
-Either of these works:
-
-- **GitHub CLI (recommended)** — install the [`gh` CLI](https://cli.github.com) and run
-  `gh auth login` once.
-- **Personal access token** — a token with `repo` scope, exported as `GITHUB_TOKEN`.
 
 ## That's it
 

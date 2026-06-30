@@ -20,10 +20,11 @@ The startup script creates your user account, sets the generated password, adds 
 user to the `docker` group, and applies system updates, then the instance restarts once
 to pick everything up.
 
-!!! note "IAP access is granted to your Vindhya identity"
-    The IAM binding is created for `<username>@vindhyadatascience.com`, where the
-    username comes from the launch form. Your Google Cloud identity must exist under
-    that domain for tunneling to work.
+!!! note "IAP access is granted to your account"
+    The IAM binding is created for `<username>@<domain>`. Both default to your active
+    gcloud account (e.g. `gcloud config get-value account`), and you can override them on
+    the launch form. That Google identity must have access to the project for tunneling
+    to work.
 
 ## Security model
 

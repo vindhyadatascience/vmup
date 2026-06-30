@@ -18,14 +18,14 @@ mappings, and boot disk size.
  
   <span class="t-header">VM Name        Project          Zone            Machine         Status</span>
   <span class="t-dim">───────────────────────────────────────────────────────────────────────────</span>
-<span class="t-selected">&gt; rstudio-eric   my-gcp-project   us-central1-a   e2-highmem-2    <span class="t-running">RUNNING (1 tunnel)</span></span>
+<span class="t-selected">&gt; rstudio-demo   my-gcp-project   us-central1-a   e2-highmem-2    <span class="t-running">RUNNING (1 tunnel)</span></span>
   analysis-vm    my-gcp-project   us-central1-a   e2-highmem-4    <span class="t-stopped">STOPPED</span>
   batch-runner   my-gcp-project   us-central1-a   e2-standard-4   <span class="t-orange">PROVISIONING</span>
   <span class="t-dim">───────────────────────────────────────────────────────────────────────────</span>
  
-  <span class="t-key">Image:</span>         vds-debian-13-base
+  <span class="t-key">Image:</span>         my-rstudio-image
   <span class="t-key">Port Mapping:</span>  8787:8787
-  <span class="t-key">Username:</span>      eric
+  <span class="t-key">Username:</span>      demo
   <span class="t-key">Boot Disk:</span>     20 GB
   <span class="t-key">Data Disks:</span>    reference-data (100 GB, ro)
   <span class="t-info">Tunnel active: http://localhost:8787 (PID 52114)</span>

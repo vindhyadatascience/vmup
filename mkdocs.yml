@@ -4,7 +4,7 @@ site_url: https://vindhyadatascience.github.io/vmup/
 repo_url: https://github.com/vindhyadatascience/vmup
 repo_name: vindhyadatascience/vmup
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2026 Vindhya Data Science, Inc. All Rights Reserved
+copyright: Copyright &copy; 2026 Vindhya Data Science, Inc. — Licensed under Apache-2.0
 
 theme:
   name: material

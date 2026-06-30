@@ -8,7 +8,7 @@ Press ++comma++ to open the settings screen.
  
   <span class="t-header">Data Directory</span>
   <span class="t-dim">Where VM projects and disks are stored</span>
-  <span class="t-focus">/Users/eric/.vmup▎               </span>
+  <span class="t-focus">/Users/you/.vmup▎               </span>
  
   <span class="t-btn">✓ Submit</span>  <span class="t-btn-dim">Cancel</span>
  
