@@ -18,8 +18,14 @@
         Launch and manage GCP compute instances from your terminal.<br>
         One binary. Embedded Terraform. IAP-only access.
       </p>
+      <div class="vmup-install-tabs" role="tablist" aria-label="Install command by platform">
+        <button class="vmup-install-tab" data-os="unix" role="tab" aria-selected="true">macOS / Linux</button>
+        <button class="vmup-install-tab" data-os="windows" role="tab" aria-selected="false">Windows</button>
+      </div>
       <div class="vmup-install">
-        <pre id="vmup-install-cmd">curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh</pre>
+        <pre id="vmup-install-cmd"
+             data-cmd-unix="curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh"
+             data-cmd-windows="irm https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.ps1 | iex">curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/install.sh | sh</pre>
         <button class="vmup-copy" data-copy-target="vmup-install-cmd" title="Copy to clipboard" aria-label="Copy install command">
           <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 21H8V7h11m0-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-3-4H4a2 2 0 0 0-2 2v14h2V3h12V1Z"/></svg>
         </button>
@@ -32,7 +38,7 @@
 
     <div class="vmup-terminal" role="img" aria-label="The vmup terminal interface showing instances in running, provisioning, and stopped states">
       <div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
-      <pre class="vmup-terminal-body"><span class="t-title">vmup - 1.6.2 - GCP Instance Manager</span>
+      <pre class="vmup-terminal-body"><span class="t-title">vmup - 1.8.0 - GCP Instance Manager</span>
 
  <span class="t-tab-active">1 Instances</span> <span class="t-tab">2 Data Disks</span>
 
