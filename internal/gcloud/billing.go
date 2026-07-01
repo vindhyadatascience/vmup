@@ -339,9 +339,20 @@ func MachineFamily(machineType string) string {
 
 // MachineTypeInfo holds specs for a machine type from the Compute API.
 type MachineTypeInfo struct {
-	Name     string
-	GuestCpus int
-	MemoryMB  int
+	Name         string
+	GuestCpus    int
+	MemoryMB     int
+	Architecture string // "ARM64"; empty for x86 (the API omits it)
+}
+
+// Arch returns the machine type's CPU architecture, normalizing the API's empty
+// value (used for x86) to "X86_64" so it can be compared with an image's
+// architecture field.
+func (mt MachineTypeInfo) Arch() string {
+	if mt.Architecture != "" {
+		return mt.Architecture
+	}
+	return "X86_64"
 }
 
 type machineTypesListResponse struct {
@@ -350,9 +361,10 @@ type machineTypesListResponse struct {
 }
 
 type machineTypeItem struct {
-	Name      string `json:"name"`
-	GuestCpus int    `json:"guestCpus"`
-	MemoryMb  int    `json:"memoryMb"`
+	Name         string `json:"name"`
+	GuestCpus    int    `json:"guestCpus"`
+	MemoryMb     int    `json:"memoryMb"`
+	Architecture string `json:"architecture"`
 }
 
 // FetchMachineTypes returns all machine types available in a zone.
@@ -381,9 +393,10 @@ func FetchMachineTypes(projectID, zone string) ([]MachineTypeInfo, error) {
 
 		for _, item := range resp.Items {
 			allTypes = append(allTypes, MachineTypeInfo{
-				Name:      path.Base(item.Name),
-				GuestCpus: item.GuestCpus,
-				MemoryMB:  item.MemoryMb,
+				Name:         path.Base(item.Name),
+				GuestCpus:    item.GuestCpus,
+				MemoryMB:     item.MemoryMb,
+				Architecture: item.Architecture,
 			})
 		}
 

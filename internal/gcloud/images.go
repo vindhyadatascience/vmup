@@ -10,17 +10,19 @@ import (
 
 // ImageInfo identifies a bootable compute image and the project it lives in.
 type ImageInfo struct {
-	Name    string
-	Family  string
-	Project string
+	Name         string
+	Family       string
+	Project      string
+	Architecture string // "X86_64", "ARM64", or "" if unspecified
 }
 
 // rawImage is the subset of the Compute images resource we care about.
 type rawImage struct {
-	Name       string `json:"name"`
-	Family     string `json:"family"`
-	SelfLink   string `json:"selfLink"`
-	Deprecated struct {
+	Name         string `json:"name"`
+	Family       string `json:"family"`
+	SelfLink     string `json:"selfLink"`
+	Architecture string `json:"architecture"`
+	Deprecated   struct {
 		State string `json:"state"`
 	} `json:"deprecated"`
 }
@@ -64,9 +66,13 @@ func FetchImages(project string) ([]ImageInfo, error) {
 		if !img.active() {
 			continue
 		}
-		images = append(images, ImageInfo{Name: img.Name, Family: img.Family, Project: project})
+		images = append(images, ImageInfo{Name: img.Name, Family: img.Family, Project: project, Architecture: img.Architecture})
 	}
-	sortImages(images)
+	// Custom (favorited) images are shown as a flat starred list, so sort them
+	// alphabetically by name rather than newest-first like the public images.
+	sort.Slice(images, func(i, j int) bool {
+		return images[i].Name < images[j].Name
+	})
 	return images, nil
 }
 
@@ -92,9 +98,10 @@ func FetchStandardImages() ([]ImageInfo, error) {
 			continue
 		}
 		images = append(images, ImageInfo{
-			Name:    img.Name,
-			Family:  img.Family,
-			Project: projectFromSelfLink(img.SelfLink),
+			Name:         img.Name,
+			Family:       img.Family,
+			Project:      projectFromSelfLink(img.SelfLink),
+			Architecture: img.Architecture,
 		})
 	}
 	sortImages(images)
@@ -113,6 +120,22 @@ func sortImages(images []ImageInfo) {
 		}
 		return images[i].Name > images[j].Name
 	})
+}
+
+// FetchImageArch returns the architecture ("ARM64"/"X86_64"/"") of a single
+// image. It is used to constrain machine-type choices when editing a VM, where
+// the image is fixed.
+func FetchImageArch(project, image string) (string, error) {
+	url := fmt.Sprintf("https://compute.googleapis.com/compute/v1/projects/%s/global/images/%s", project, image)
+	body, err := apiGet(url)
+	if err != nil {
+		return "", err
+	}
+	var img rawImage
+	if err := json.Unmarshal(body, &img); err != nil {
+		return "", fmt.Errorf("parsing image: %w", err)
+	}
+	return img.Architecture, nil
 }
 
 // IsAccessDenied reports whether err is a permission/not-found error from the
