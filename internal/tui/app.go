@@ -410,6 +410,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd = a.updateConfirmStopVM(msg)
 	case screenConfirmStopAll:
 		model, cmd = a.updateConfirmStopAll(msg)
+	case screenConfirmCreate:
+		model, cmd = a.updateConfirmCreate(msg)
 	case screenDiskCreate:
 		model, cmd = a.updateDiskCreate(msg)
 	case screenDiskImport:
@@ -485,6 +487,8 @@ func (a App) View() string {
 		return a.viewConfirmStopVM()
 	case screenConfirmStopAll:
 		return a.viewConfirmStopAll()
+	case screenConfirmCreate:
+		return a.viewConfirmCreate()
 	case screenDiskCreate:
 		return a.diskForm.View()
 	case screenDiskImport:
@@ -660,22 +664,21 @@ func (a App) updateConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg.(type) {
 	case configDoneMsg:
-		cfg := msg.(configDoneMsg).cfg
-		a.activeConfig = cfg
-		a.bgRunning = true
-		a.bgSourceTab = tabInstances
-
-		title := "Launching VM..."
+		// Review/confirm before running terraform apply, so a stray Enter on the
+		// last field can't launch (or update) a VM without an explicit yes.
+		a.activeConfig = msg.(configDoneMsg).cfg
+		title := "Create this VM?"
 		if a.editMode {
-			title = "Updating VM..."
-			a.tunnelMgr.StopAll(cfg.VMName)
-			a.editMode = false
+			title = "Apply these changes and update the VM?"
 		}
-
-		a.bgTitle = title
-		a.progress = newProgressModel(title)
-		a.screen = screenProgress
-		return a, tea.Batch(a.progress.Init(), a.cmdLaunchVM(cfg))
+		a.confirmValue = new(bool)
+		a.confirmForm = huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().Title(title).Value(a.confirmValue),
+			),
+		)
+		a.screen = screenConfirmCreate
+		return a, a.confirmForm.Init()
 
 	case configCancelMsg:
 		a.editMode = false
@@ -953,6 +956,65 @@ func (a App) updateConfirmStopAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) viewConfirmStopAll() string {
 	return titleStyle.Render("Stop All") + "\n\n" + a.confirmForm.View() + "\n" + dimStyle.Render("esc/ctrl+c cancel")
+}
+
+// --- Confirm Create / Update ---
+
+func (a App) updateConfirmCreate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		if msg.String() == "esc" || msg.String() == "ctrl+c" {
+			// Back to the config form so nothing entered is lost.
+			a.screen = screenConfig
+			return a, a.config.reopen()
+		}
+	}
+
+	form, cmd := a.confirmForm.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		a.confirmForm = f
+	}
+
+	if a.confirmForm.State == huh.StateCompleted {
+		if !*a.confirmValue {
+			// Declined: return to the editable form rather than discarding it.
+			a.screen = screenConfig
+			return a, a.config.reopen()
+		}
+
+		cfg := a.activeConfig
+		a.bgRunning = true
+		a.bgSourceTab = tabInstances
+
+		title := "Launching VM..."
+		if a.editMode {
+			title = "Updating VM..."
+			a.tunnelMgr.StopAll(cfg.VMName)
+			a.editMode = false
+		}
+
+		a.bgTitle = title
+		a.progress = newProgressModel(title)
+		a.screen = screenProgress
+		return a, tea.Batch(a.progress.Init(), a.cmdLaunchVM(cfg))
+	}
+
+	return a, cmd
+}
+
+func (a App) viewConfirmCreate() string {
+	title := "Review New VM"
+	if a.editMode {
+		title = "Review VM Changes"
+	}
+	c := a.activeConfig
+	summary := fmt.Sprintf(
+		"VM Name:       %s\nImage:         %s\nImage Project: %s\nRegion:        %s\nZone:          %s\nMachine Type:  %s\nBoot Disk:     %s GB\nPort Mapping:  %s",
+		c.VMName, c.Image, c.ImageProject, c.Region, c.Zone, c.MachineType, c.BootDiskSize, c.PortMapping,
+	)
+	return titleStyle.Render(title) + "\n\n" +
+		summary + "\n\n" +
+		a.confirmForm.View() + "\n" +
+		dimStyle.Render("esc/ctrl+c back to edit")
 }
 
 // refreshVMList switches to the VM list screen and triggers a background
@@ -1727,10 +1789,12 @@ func (a *App) cmdStartTunnels() tea.Cmd {
 			a.program.Send(logLineMsg("Instance started."))
 		}
 
+		// Use a generous budget even when the instance is already RUNNING: the
+		// first SSH connection can take a while (gcloud key propagation, IAP
+		// warm-up, and the VM may still be booting — main.tf resets it once
+		// after creation). SSH that's already up connects on the first attempt,
+		// so this only adds patience when it's genuinely needed.
 		sshTimeout := 120 * time.Second
-		if status == "RUNNING" {
-			sshTimeout = 30 * time.Second
-		}
 		a.program.Send(logLineMsg("Waiting for SSH to become available..."))
 		if err := gcloud.WaitForSSH(cfg, sshTimeout, func(attempt int, elapsed time.Duration) {
 			a.program.Send(logLineMsg(fmt.Sprintf("  SSH not ready yet (attempt %d, %.0fs elapsed), retrying...", attempt, elapsed.Seconds())))

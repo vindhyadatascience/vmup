@@ -93,6 +93,7 @@ const (
 // the caller can report progress.
 func WaitForSSH(cfg config.Config, timeout time.Duration, onRetry func(attempt int, elapsed time.Duration)) error {
 	start := time.Now()
+	var lastErr string
 	for attempt := 1; ; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), sshAttemptTimeout)
 		cmd := exec.CommandContext(ctx, "gcloud", "compute", "ssh", cfg.VMName,
@@ -104,18 +105,25 @@ func WaitForSSH(cfg config.Config, timeout time.Duration, onRetry func(attempt i
 			"--ssh-flag=-o StrictHostKeyChecking=no",
 			"--ssh-flag=-o UserKnownHostsFile=/dev/null",
 		)
+		var stderr bytes.Buffer
 		cmd.Stdin = nil
 		cmd.Stdout = nil
-		cmd.Stderr = nil
+		cmd.Stderr = &stderr
 		err := cmd.Run()
 		cancel()
 
 		if err == nil {
 			return nil
 		}
+		if line := lastNonEmptyLine(stderr.String()); line != "" {
+			lastErr = line
+		}
 
 		elapsed := time.Since(start)
 		if elapsed+sshRetryInterval > timeout {
+			if lastErr != "" {
+				return fmt.Errorf("SSH not ready after %v (%d attempts): %s", elapsed.Round(time.Second), attempt, lastErr)
+			}
 			return fmt.Errorf("SSH not ready after %v (%d attempts)", elapsed.Round(time.Second), attempt)
 		}
 
@@ -124,6 +132,18 @@ func WaitForSSH(cfg config.Config, timeout time.Duration, onRetry func(attempt i
 		}
 		time.Sleep(sshRetryInterval)
 	}
+}
+
+// lastNonEmptyLine returns the last non-blank line of s — used to surface the
+// most relevant line of gcloud/ssh stderr in timeout error messages.
+func lastNonEmptyLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(lines[i]); l != "" {
+			return l
+		}
+	}
+	return ""
 }
 
 func SSHCommand(cfg config.Config) *exec.Cmd {

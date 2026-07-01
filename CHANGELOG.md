@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-01
+
+### Added
+- The Configure New VM form selects regions, zones, and machine types
+  dynamically from the Compute API instead of hard-coded lists, and filters
+  machine types to the selected image's CPU architecture (ARM64/x86_64).
+- A review/confirmation step before a VM is created or updated: it shows a
+  summary and requires an explicit yes, so a stray Enter on the last field
+  can no longer launch a VM. Backing out (Esc or No) returns to the form with
+  everything entered still in place.
+
+### Changed
+- Favorited (custom-project) images are now listed alphabetically.
+- SSH readiness now always waits with the full timeout and reports the
+  underlying gcloud/SSH error when it times out.
+
+### Fixed
+- The Region selector shows the default region (us-central1) selected on first
+  render instead of scrolling to the top of the list.
+- The selected image is now recorded reliably; the picker could previously
+  fall back to the default image.
+- Images available in both the custom project and the public image list are no
+  longer shown twice.
+
 ## [1.7.2] - 2026-06-30
 
 ### Fixed

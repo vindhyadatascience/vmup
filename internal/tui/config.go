@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -14,6 +15,38 @@ import (
 	"github.com/vindhyadatascience/vmup/internal/gcloud"
 	"github.com/vindhyadatascience/vmup/internal/platform"
 )
+
+// mtStore caches machine types per zone. It is held by pointer on configModel so
+// the cache is shared across the value-copied Bubble Tea model and safe for the
+// goroutines huh runs OptionsFunc in.
+type mtStore struct {
+	mu sync.Mutex
+	m  map[string][]gcloud.MachineTypeInfo
+}
+
+func newMTStore() *mtStore { return &mtStore{m: map[string][]gcloud.MachineTypeInfo{}} }
+
+func (s *mtStore) put(zone string, types []gcloud.MachineTypeInfo) {
+	s.mu.Lock()
+	s.m[zone] = types
+	s.mu.Unlock()
+}
+
+// getOrFetch returns the cached machine types for a zone, fetching and caching
+// them on the first request for that zone.
+func (s *mtStore) getOrFetch(project, zone string) []gcloud.MachineTypeInfo {
+	s.mu.Lock()
+	v, ok := s.m[zone]
+	s.mu.Unlock()
+	if ok {
+		return v
+	}
+	t, _ := gcloud.FetchMachineTypes(project, zone)
+	s.mu.Lock()
+	s.m[zone] = t
+	s.mu.Unlock()
+	return t
+}
 
 // --- Common machine types (hardcoded specs, used as fallback) ---
 
@@ -42,7 +75,9 @@ type configCancelMsg struct{}
 type configDataReadyMsg struct {
 	rates        map[string]gcloud.MachineTypeRate
 	machineTypes []gcloud.MachineTypeInfo
-	gcpProject   string // detected from gcloud config
+	gcpProject    string              // detected from gcloud config
+	regionZones   map[string][]string // region → zones
+	editImageArch string              // architecture of the edited VM's locked image
 
 	customImages      []gcloud.ImageInfo
 	standardImages    []gcloud.ImageInfo
@@ -72,12 +107,19 @@ type configModel struct {
 	billingRates    map[string]gcloud.MachineTypeRate
 	allMachineTypes []gcloud.MachineTypeInfo
 
+	// Region/zone selection (new VMs)
+	regions     []string            // sorted list of all regions
+	regionZones map[string][]string // region → sorted zones
+	mt          *mtStore            // machine types cached per zone
+
 	// Image picker state
 	imageProjectSetting string // effective image-project setting to list custom images from
 	customImages        []gcloud.ImageInfo
 	standardImages      []gcloud.ImageInfo
-	imageChoice         string // composite "project/name" bound to the Select
-	imageNotice         string // transient notice (e.g. image-project access cleared)
+	imageArch           map[string]string // imageKey → architecture (X86_64/ARM64)
+	editImageArch       string            // architecture of the locked image (edit mode)
+	imageChoice         *string           // composite "project/name" bound to the Select; heap-allocated so the huh binding survives value-receiver Update copies (like cfg)
+	imageNotice         string            // transient notice (e.g. image-project access cleared)
 }
 
 func newConfigModel() configModel {
@@ -100,6 +142,9 @@ func newConfigModel() configModel {
 		spinner:             s,
 		loadStart:           time.Now(),
 		imageProjectSetting: imageProject,
+		mt:                  newMTStore(),
+		imageArch:           map[string]string{},
+		imageChoice:         new(string),
 		cfg: &config.Config{
 			Username:     username,
 			UserDomain:   domain,
@@ -131,11 +176,12 @@ func newEditConfigModel(cfg config.Config) configModel {
 	s.Spinner = spinner.Dot
 
 	return configModel{
-		phase:     configPhaseLoading,
-		spinner:   s,
-		loadStart: time.Now(),
-		cfg:       &cfg,
-		isEdit:    true,
+		phase:       configPhaseLoading,
+		spinner:     s,
+		loadStart:   time.Now(),
+		cfg:         &cfg,
+		isEdit:      true,
+		imageChoice: new(string),
 	}
 }
 
@@ -144,19 +190,20 @@ func (m configModel) Init() tea.Cmd {
 	projectID := m.cfg.ProjectID
 	zone := m.cfg.Zone
 	imageProject := m.imageProjectSetting
+	editImage := m.cfg.Image
+	editImageProject := m.cfg.ImageProject
 	isNew := !m.isEdit
 	return tea.Batch(
 		m.spinner.Tick,
 		func() tea.Msg {
-			type ratesResult struct {
-				rates map[string]gcloud.MachineTypeRate
+			// Resolve the project once (new VMs start with an empty project id).
+			pid := projectID
+			if pid == "" {
+				pid = platform.DetectGCPProject()
 			}
-			type typesResult struct {
-				types []gcloud.MachineTypeInfo
-			}
-			type projectResult struct {
-				project string
-			}
+
+			type ratesResult struct{ rates map[string]gcloud.MachineTypeRate }
+			type typesResult struct{ types []gcloud.MachineTypeInfo }
 			type imagesResult struct {
 				custom   []gcloud.ImageInfo
 				standard []gcloud.ImageInfo
@@ -165,22 +212,14 @@ func (m configModel) Init() tea.Cmd {
 
 			ratesCh := make(chan ratesResult, 1)
 			typesCh := make(chan typesResult, 1)
-			projectCh := make(chan projectResult, 1)
 			imagesCh := make(chan imagesResult, 1)
+			zonesCh := make(chan map[string][]string, 1)
+			editArchCh := make(chan string, 1)
 
+			go func() { ratesCh <- ratesResult{rates: gcloud.FetchComputeRates(region)} }()
 			go func() {
-				r := gcloud.FetchComputeRates(region)
-				ratesCh <- ratesResult{rates: r}
-			}()
-			go func() {
-				// For new VMs, projectID is empty — need to detect it first
-				pid := projectID
-				if pid == "" {
-					pid = platform.DetectGCPProject()
-				}
 				t, _ := gcloud.FetchMachineTypes(pid, zone)
 				typesCh <- typesResult{types: t}
-				projectCh <- projectResult{project: pid}
 			}()
 			if isNew {
 				go func() {
@@ -196,26 +235,32 @@ func (m configModel) Init() tea.Cmd {
 					res.standard, _ = gcloud.FetchStandardImages()
 					imagesCh <- res
 				}()
+				go func() {
+					z, _ := gcloud.FetchZonesByRegion(pid)
+					zonesCh <- z
+				}()
+			} else {
+				go func() {
+					a, _ := gcloud.FetchImageArch(editImageProject, editImage)
+					editArchCh <- a
+				}()
 			}
 
 			rr := <-ratesCh
 			tr := <-typesCh
-			var gcpProject string
-			var ir imagesResult
+			msg := configDataReadyMsg{rates: rr.rates, machineTypes: tr.types}
 			if isNew {
-				pr := <-projectCh
-				gcpProject = pr.project
-				ir = <-imagesCh
+				ir := <-imagesCh
+				msg.gcpProject = pid
+				msg.customImages = ir.custom
+				msg.standardImages = ir.standard
+				msg.imageDenied = ir.denied
+				msg.imageProjectTried = imageProject
+				msg.regionZones = <-zonesCh
+			} else {
+				msg.editImageArch = <-editArchCh
 			}
-			return configDataReadyMsg{
-				rates:             rr.rates,
-				machineTypes:      tr.types,
-				gcpProject:        gcpProject,
-				customImages:      ir.custom,
-				standardImages:    ir.standard,
-				imageDenied:       ir.denied,
-				imageProjectTried: imageProject,
-			}
+			return msg
 		},
 	)
 }
@@ -233,11 +278,18 @@ func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 	case configDataReadyMsg:
 		m.billingRates = msg.rates
 		m.allMachineTypes = msg.machineTypes
+		m.editImageArch = msg.editImageArch
 		if msg.gcpProject != "" && m.cfg.ProjectID == "" {
 			m.cfg.ProjectID = msg.gcpProject
 		}
 		m.customImages = msg.customImages
 		m.standardImages = msg.standardImages
+		m.regionZones = msg.regionZones
+		m.regions = sortedRegions(msg.regionZones)
+		m.imageArch = buildImageArchMap(msg.customImages, msg.standardImages)
+		if m.mt != nil {
+			m.mt.put(m.cfg.Zone, msg.machineTypes)
+		}
 		if msg.imageDenied {
 			// Self-heal: the configured image project is unusable for this
 			// user. Clear the setting (once) so future runs skip it, and tell
@@ -251,7 +303,7 @@ func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 				msg.imageProjectTried,
 			)
 		}
-		m.imageChoice = m.defaultImageChoice()
+		*m.imageChoice = m.defaultImageChoice()
 		m.phase = configPhaseForm
 		m.form = m.buildForm()
 		return m, m.form.Init()
@@ -278,8 +330,8 @@ func (m configModel) Update(msg tea.Msg) (configModel, tea.Cmd) {
 		// Resolve the picked image into the per-VM image + project. The
 		// fallback (no images fetched) path sets cfg.Image/ImageProject
 		// directly via inputs and leaves imageChoice empty.
-		if !m.isEdit && m.imageChoice != "" && m.imageChoice != imageDividerValue {
-			proj, name := parseImageKey(m.imageChoice)
+		if !m.isEdit && *m.imageChoice != "" && *m.imageChoice != imageDividerValue {
+			proj, name := parseImageKey(*m.imageChoice)
 			m.cfg.ImageProject = proj
 			m.cfg.Image = name
 		}
@@ -321,6 +373,14 @@ func (m configModel) View() string {
 
 // --- Form builder ---
 
+// reopen rebuilds the form (resetting its completed state) and returns the
+// command to re-initialise it. Used when the user backs out of the create/update
+// confirmation so they land on the still-populated, editable form.
+func (m *configModel) reopen() tea.Cmd {
+	m.form = m.buildForm()
+	return m.form.Init()
+}
+
 func (m *configModel) buildForm() *huh.Form {
 	if m.isEdit {
 		return huh.NewForm(
@@ -349,7 +409,7 @@ func (m *configModel) buildForm() *huh.Form {
 				huh.NewSelect[string]().
 					Title("Machine Type").
 					Height(10).
-					Options(m.machineTypeOptions()...).
+					Options(m.buildMachineOptions(m.allMachineTypes, m.editImageArch)...).
 					Value(&m.cfg.MachineType),
 				huh.NewInput().
 					Title("Boot Disk Size (GB)").
@@ -363,16 +423,10 @@ func (m *configModel) buildForm() *huh.Form {
 		).WithShowHelp(true).WithShowErrors(true)
 	}
 
-	// Image group: a picker of fetched images, or free-form inputs when none
-	// could be fetched (e.g. gcloud is not authenticated).
-	imageGroup := append(m.imageFields(),
-		huh.NewInput().
-			Title("Region").
-			Value(&m.cfg.Region),
-		huh.NewInput().
-			Title("Zone").
-			Value(&m.cfg.Zone),
-	)
+	// Image group: a picker of fetched images (or free-form inputs as a
+	// fallback), plus Region/Zone selects. Zone options react to the chosen
+	// Region, and the Machine Type options (below) react to Zone + image arch.
+	imageGroup := append(m.imageFields(), m.regionField(), m.zoneField())
 
 	return huh.NewForm(
 		huh.NewGroup(
@@ -395,11 +449,7 @@ func (m *configModel) buildForm() *huh.Form {
 		),
 		huh.NewGroup(imageGroup...),
 		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Machine Type").
-				Height(10).
-				Options(m.machineTypeOptions()...).
-				Value(&m.cfg.MachineType),
+			m.machineTypeField(),
 			huh.NewInput().
 				Title("Boot Disk Size (GB)").
 				Description("OS and system files — destroyed with the VM").
@@ -445,24 +495,33 @@ func (m *configModel) imageFields() []huh.Field {
 				}
 				return nil
 			}).
-			Value(&m.imageChoice),
+			Value(m.imageChoice),
 	}
 }
 
 // imageOptions builds the picker options: custom-project images first (starred),
-// then a divider, then the standard public images.
+// then a divider, then the standard public images. Standard images that duplicate
+// a custom image (same project/name) are omitted so each image appears once —
+// the custom image project also surfaces via `gcloud compute images list`.
 func (m *configModel) imageOptions() []huh.Option[string] {
 	var opts []huh.Option[string]
+	custom := make(map[string]bool, len(m.customImages))
 	for _, img := range m.customImages {
+		custom[imageKey(img)] = true
 		opts = append(opts, huh.NewOption("★ "+imageLabel(img), imageKey(img)))
 	}
-	if len(m.customImages) > 0 && len(m.standardImages) > 0 {
+
+	var standard []huh.Option[string]
+	for _, img := range m.standardImages {
+		if custom[imageKey(img)] {
+			continue
+		}
+		standard = append(standard, huh.NewOption(imageLabel(img), imageKey(img)))
+	}
+	if len(opts) > 0 && len(standard) > 0 {
 		opts = append(opts, huh.NewOption("──────── standard images ────────", imageDividerValue))
 	}
-	for _, img := range m.standardImages {
-		opts = append(opts, huh.NewOption(imageLabel(img), imageKey(img)))
-	}
-	return opts
+	return append(opts, standard...)
 }
 
 func (m *configModel) defaultImageChoice() string {
@@ -495,51 +554,172 @@ func parseImageKey(key string) (project, name string) {
 	return "", key
 }
 
-// --- Machine type options ---
+// --- Region / zone / machine type fields ---
 
-func (m *configModel) machineTypeOptions() []huh.Option[string] {
-	commonSet := make(map[string]bool)
-	var opts []huh.Option[string]
+// regionField is a Select of all regions (or a free-text input if the region
+// list could not be fetched).
+func (m *configModel) regionField() huh.Field {
+	if len(m.regions) == 0 {
+		return huh.NewInput().Title("Region").Value(&m.cfg.Region)
+	}
+	// Value must be set before Options: huh only scrolls the viewport to the
+	// selected option inside Options(), and only if the value accessor is
+	// already wired up. Otherwise the list stays scrolled to the top and the
+	// us-central1 selection is off-screen until the field is focused.
+	return huh.NewSelect[string]().
+		Title("Region").
+		Height(8).
+		Value(&m.cfg.Region).
+		Options(toOptions(m.regions)...)
+}
 
-	// Common types first, starred
-	for _, mt := range commonMachineTypes {
-		commonSet[mt.Name] = true
-		label := "★ " + formatMachineLabel(mt.Name, mt.VCPUs, mt.MemoryGB, m.billingRates)
-		opts = append(opts, huh.NewOption(label, mt.Name))
+// zoneField is a Select whose options are the zones in the chosen Region (it
+// re-evaluates when Region changes), or a free-text input as a fallback.
+func (m *configModel) zoneField() huh.Field {
+	if len(m.regionZones) == 0 {
+		return huh.NewInput().Title("Zone").Value(&m.cfg.Zone)
+	}
+	return huh.NewSelect[string]().
+		Title("Zone").
+		Height(8).
+		OptionsFunc(func() []huh.Option[string] {
+			return toOptions(m.regionZones[m.cfg.Region])
+		}, &m.cfg.Region).
+		Value(&m.cfg.Zone)
+}
+
+// machineTypeField is a Select whose options react to the chosen Zone (machine
+// types are fetched per-zone and cached) and the selected image's architecture
+// (incompatible machine types are filtered out so the VM can actually boot).
+func (m *configModel) machineTypeField() huh.Field {
+	return huh.NewSelect[string]().
+		Title("Machine Type").
+		Height(10).
+		OptionsFunc(func() []huh.Option[string] {
+			mts := m.mt.getOrFetch(m.cfg.ProjectID, m.cfg.Zone)
+			return m.buildMachineOptions(mts, m.imageArch[*m.imageChoice])
+		}, []any{&m.cfg.Zone, m.imageChoice}).
+		Value(&m.cfg.MachineType)
+}
+
+// toOptions builds Select options whose label and value are the same string.
+func toOptions(values []string) []huh.Option[string] {
+	opts := make([]huh.Option[string], 0, len(values))
+	for _, v := range values {
+		opts = append(opts, huh.NewOption(v, v))
+	}
+	return opts
+}
+
+func sortedRegions(rz map[string][]string) []string {
+	regions := make([]string, 0, len(rz))
+	for r := range rz {
+		regions = append(regions, r)
+	}
+	sort.Strings(regions)
+	return regions
+}
+
+func buildImageArchMap(custom, standard []gcloud.ImageInfo) map[string]string {
+	arch := make(map[string]string, len(custom)+len(standard))
+	for _, img := range custom {
+		arch[imageKey(img)] = img.Architecture
+	}
+	for _, img := range standard {
+		arch[imageKey(img)] = img.Architecture
+	}
+	return arch
+}
+
+// buildMachineOptions builds the machine-type Select options: compatible
+// recommended (★) types first, then the rest — each group sorted by estimated
+// hourly cost (cheapest first). When wantArch is non-empty, only machine types
+// of that architecture are included so the choice can't mismatch the selected
+// image. Falls back to the curated common list when the API returned none.
+func (m *configModel) buildMachineOptions(mts []gcloud.MachineTypeInfo, wantArch string) []huh.Option[string] {
+	recommended := make(map[string]bool, len(commonMachineTypes))
+	for _, c := range commonMachineTypes {
+		recommended[c.Name] = true
 	}
 
-	// All other types from API, sorted by family then vCPU
-	if len(m.allMachineTypes) > 0 {
-		types := make([]gcloud.MachineTypeInfo, len(m.allMachineTypes))
-		copy(types, m.allMachineTypes)
-		sort.Slice(types, func(i, j int) bool {
-			fi := gcloud.MachineFamily(types[i].Name)
-			fj := gcloud.MachineFamily(types[j].Name)
-			if fi != fj {
-				return fi < fj
-			}
-			if types[i].GuestCpus != types[j].GuestCpus {
-				return types[i].GuestCpus < types[j].GuestCpus
-			}
-			return types[i].MemoryMB < types[j].MemoryMB
-		})
-
-		for _, mt := range types {
-			if commonSet[mt.Name] {
-				continue
-			}
-			memGB := float64(mt.MemoryMB) / 1024.0
-			label := formatMachineLabel(mt.Name, mt.GuestCpus, memGB, m.billingRates)
-			opts = append(opts, huh.NewOption(label, mt.Name))
+	// Fall back to the curated common list when the API returned nothing.
+	if len(mts) == 0 {
+		for _, c := range commonMachineTypes {
+			mts = append(mts, gcloud.MachineTypeInfo{
+				Name:      c.Name,
+				GuestCpus: c.VCPUs,
+				MemoryMB:  int(c.MemoryGB * 1024),
+			})
 		}
 	}
 
-	// Ensure current type is in list (edit mode with non-standard type)
-	if m.isEdit {
+	// Filter by architecture.
+	var types []gcloud.MachineTypeInfo
+	for _, mt := range mts {
+		if wantArch == "" || mt.Arch() == wantArch {
+			types = append(types, mt)
+		}
+	}
+
+	// Sort by hourly cost (cheapest first). Unknown costs sort last; ties (and
+	// the all-unknown case) fall back to vCPU then memory.
+	sort.Slice(types, func(i, j int) bool {
+		ri, rj := m.hourlyRate(types[i]), m.hourlyRate(types[j])
+		if (ri == 0) != (rj == 0) {
+			return rj == 0
+		}
+		if ri != rj {
+			return ri < rj
+		}
+		if types[i].GuestCpus != types[j].GuestCpus {
+			return types[i].GuestCpus < types[j].GuestCpus
+		}
+		return types[i].MemoryMB < types[j].MemoryMB
+	})
+
+	// Recommended (★) types first, then the rest. Each group stays in cost order
+	// because `types` is already cost-sorted.
+	var top, rest []huh.Option[string]
+	for _, mt := range types {
+		memGB := float64(mt.MemoryMB) / 1024.0
+		label := formatMachineLabel(mt.Name, mt.GuestCpus, memGB, m.billingRates)
+		if recommended[mt.Name] {
+			top = append(top, huh.NewOption("★ "+label, mt.Name))
+		} else {
+			rest = append(rest, huh.NewOption(label, mt.Name))
+		}
+	}
+	opts := append(top, rest...)
+
+	// Ensure the current type is in the list (edit mode with a non-standard
+	// type) — but never re-add a type that mismatches the image's architecture,
+	// so editing a VM with a bad machine type forces a compatible choice.
+	if m.isEdit && (wantArch == "" || m.machineTypeArch(m.cfg.MachineType) == wantArch) {
 		opts = ensureCurrentTypeInOptions(opts, m.cfg.MachineType)
 	}
 
 	return opts
+}
+
+// machineTypeArch returns the architecture of a machine type by name from the
+// fetched machine-type list, or "" if unknown.
+func (m *configModel) machineTypeArch(name string) string {
+	for _, mt := range m.allMachineTypes {
+		if mt.Name == name {
+			return mt.Arch()
+		}
+	}
+	return ""
+}
+
+// hourlyRate returns the estimated hourly cost of a machine type, or 0 if it is
+// unknown (no billing rates loaded, or no rate for the family).
+func (m *configModel) hourlyRate(mt gcloud.MachineTypeInfo) float64 {
+	if m.billingRates == nil {
+		return 0
+	}
+	memGB := float64(mt.MemoryMB) / 1024.0
+	return gcloud.CalculateHourlyRate(mt.Name, gcloud.MachineFamily(mt.Name), mt.GuestCpus, memGB, m.billingRates)
 }
 
 func formatMachineLabel(name string, vcpus int, memGB float64, rates map[string]gcloud.MachineTypeRate) string {
