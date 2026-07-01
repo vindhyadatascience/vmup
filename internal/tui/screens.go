@@ -11,6 +11,7 @@ const (
 	screenConfirmDestroyName
 	screenConfirmStopVM
 	screenConfirmStopAll
+	screenConfirmCreate
 	screenDiskCreate
 	screenDiskImport
 	screenDiskConfirmDelete

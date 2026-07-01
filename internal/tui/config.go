@@ -373,6 +373,14 @@ func (m configModel) View() string {
 
 // --- Form builder ---
 
+// reopen rebuilds the form (resetting its completed state) and returns the
+// command to re-initialise it. Used when the user backs out of the create/update
+// confirmation so they land on the still-populated, editable form.
+func (m *configModel) reopen() tea.Cmd {
+	m.form = m.buildForm()
+	return m.form.Init()
+}
+
 func (m *configModel) buildForm() *huh.Form {
 	if m.isEdit {
 		return huh.NewForm(
