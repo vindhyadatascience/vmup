@@ -183,6 +183,35 @@
   max-width: 38rem;
 }
 
+.vmup-install-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.3rem;
+  max-width: 44rem;
+  margin: 0 auto 0.5rem;
+}
+
+.vmup-install-tab {
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.8rem;
+  border-radius: 0.4rem;
+  font-family: var(--md-code-font-family);
+  font-size: 0.62rem;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  transition: background 0.15s, color 0.15s;
+}
+
+.vmup-install-tab:hover {
+  color: var(--md-default-fg-color);
+}
+
+.vmup-install-tab[aria-selected="true"] {
+  background: #2a2a38;
+  color: #fff;
+}
+
 .vmup-install {
   display: flex;
   align-items: stretch;
