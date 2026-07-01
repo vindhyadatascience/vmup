@@ -1727,10 +1727,12 @@ func (a *App) cmdStartTunnels() tea.Cmd {
 			a.program.Send(logLineMsg("Instance started."))
 		}
 
+		// Use a generous budget even when the instance is already RUNNING: the
+		// first SSH connection can take a while (gcloud key propagation, IAP
+		// warm-up, and the VM may still be booting — main.tf resets it once
+		// after creation). SSH that's already up connects on the first attempt,
+		// so this only adds patience when it's genuinely needed.
 		sshTimeout := 120 * time.Second
-		if status == "RUNNING" {
-			sshTimeout = 30 * time.Second
-		}
 		a.program.Send(logLineMsg("Waiting for SSH to become available..."))
 		if err := gcloud.WaitForSSH(cfg, sshTimeout, func(attempt int, elapsed time.Duration) {
 			a.program.Send(logLineMsg(fmt.Sprintf("  SSH not ready yet (attempt %d, %.0fs elapsed), retrying...", attempt, elapsed.Seconds())))
