@@ -22,8 +22,8 @@ launch form appears with sensible defaults already filled in:
 | Project ID | auto-detected from `gcloud config` | The GCP project to deploy into |
 | VM name | — | Lowercase letters, numbers, and hyphens |
 | Image | first available image | Listed from your configured image project, then the standard public GCP images |
-| Region / Zone | `us-central1` / `us-central1-a` | |
-| Machine type | `e2-highmem-2` | A live **hourly cost estimate** is shown as you choose |
+| Region / Zone | `us-central1` / `us-central1-a` | Chosen from live lists fetched from GCP; the zone options update to match the selected region |
+| Machine type | `e2-highmem-2` | Filtered to the image's CPU architecture (ARM64/x86_64); a live **hourly cost estimate** is shown as you choose |
 | Boot disk size | `20` GB | |
 | Port mapping | `8787:8787` | Comma-separated `local:remote` pairs |
 
@@ -52,6 +52,12 @@ see roughly what the machine costs per hour before anything is created.
   <span class="t-header">Image</span>
   my-rstudio-image <span class="t-dim">▼</span>
  
+  <span class="t-header">Region</span>
+  us-central1 <span class="t-dim">▼</span>
+ 
+  <span class="t-header">Zone</span>
+  us-central1-a <span class="t-dim">▼</span>
+ 
   <span class="t-header">Machine Type</span>
 <span class="t-selected">&gt; ★ e2-highmem-2 (2 vCPU, 16 GB)   <span class="t-running">~$0.12/hr</span></span>
     ★ e2-highmem-4 (4 vCPU, 32 GB)   <span class="t-dim">~$0.24/hr</span>
@@ -70,11 +76,36 @@ see roughly what the machine costs per hour before anything is created.
   <span class="t-dim">ctrl+c cancel</span></pre>
 </div>
 
-## 3. Launch
+## 3. Review and launch
 
-Submit the form and vmup runs Terraform for you — `init`, then `apply` — streaming the
-output live into the progress screen. Behind the scenes this creates an isolated VPC,
-NAT, IAP-only firewall rules, and the instance itself
+Completing the form opens a **review screen** that summarizes the VM. Nothing is created
+until you confirm — press ++y++ (or select **Yes**) to launch, or ++esc++ / **No** to go
+back to the form with everything you entered still in place. This makes it hard to create
+a VM by accidentally pressing ++enter++.
+
+<div class="vmup-terminal">
+<div class="vmup-terminal-bar"><span></span><span></span><span></span></div>
+<pre class="vmup-terminal-body"><span class="t-key">Review New VM</span>
+ 
+  <span class="t-key">VM Name:</span>       rstudio-demo
+  <span class="t-key">Image:</span>         my-rstudio-image
+  <span class="t-key">Image Project:</span> my-image-project
+  <span class="t-key">Region:</span>        us-central1
+  <span class="t-key">Zone:</span>          us-central1-a
+  <span class="t-key">Machine Type:</span>  e2-highmem-2
+  <span class="t-key">Boot Disk:</span>     20 GB
+  <span class="t-key">Port Mapping:</span>  8787:8787
+ 
+  <span class="t-header">Create this VM?</span>
+ 
+  <span class="t-selected">&gt; Yes</span>    No
+ 
+  <span class="t-dim">←/→ toggle • enter submit • y Yes • n No • esc/ctrl+c back to edit</span></pre>
+</div>
+
+Confirm, and vmup runs Terraform for you — `init`, then `apply` — streaming the output
+live into the progress screen. Behind the scenes this creates an isolated VPC, NAT,
+IAP-only firewall rules, and the instance itself
 (see [Infrastructure Created](../reference/infrastructure.md)).
 
 Provisioning typically takes a few minutes. The startup script on the VM also runs

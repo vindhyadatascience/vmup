@@ -11,12 +11,21 @@ Every field in the launch form, with its default:
 | Username | your gcloud account name (falls back to OS username) | Account created on the VM |
 | User domain | your gcloud account's email domain | Combined with the username to grant IAP access (`user:<username>@<domain>`) |
 | Password | auto-generated (30-char random hex) | For services like RStudio; change it on the VM with `sudo passwd` |
-| Image | first available image | Chosen from your configured **image project** (see [Settings](#settings)) plus the standard public GCP images |
-| Region | `us-central1` | |
-| Zone | `us-central1-a` | |
-| Machine type | `e2-highmem-2` | Live hourly cost estimate shown while choosing |
+| Image | first available image | Your configured **image project** (see [Settings](#settings)) is listed first (starred, alphabetical), then the standard public GCP images; an image available in both is shown only once |
+| Region | `us-central1` | Chosen from regions fetched live from the Compute API |
+| Zone | `us-central1-a` | Chosen from the selected region's zones |
+| Machine type | `e2-highmem-2` | Fetched per-zone and filtered to the image's CPU architecture (ARM64/x86_64); live hourly cost estimate shown while choosing |
 | Boot disk size | `20` GB | |
 | Port mapping | `8787:8787` | Comma-separated `local:remote` pairs, one tunnel each |
+
+Regions, zones, and machine types are read live from the Compute API rather than being
+hard-coded, so the lists reflect what's actually available to your project. Selecting a
+region updates the zone list, and selecting an image restricts the machine-type list to
+that image's CPU architecture.
+
+Completing the form shows a **review screen** summarizing the VM; the instance is only
+created after you confirm (press ++y++ / **Yes**). Choosing **No** or pressing ++esc++
+returns to the form with your entries intact, so an accidental ++enter++ can't launch a VM.
 
 Values are written to `terraform.tfvars` in the VM's state directory, so ++e++ (edit)
 reopens the form with exactly what you launched with.
