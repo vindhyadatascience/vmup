@@ -81,6 +81,9 @@ func (m statusModel) View() string {
 				b.WriteString(fmt.Sprintf("  http://localhost:%s (PID %d)\n", pp.Local, pid))
 			}
 		}
+		if port, pid := transferTunnelEntry(m.tunnelPIDs); port != "" {
+			b.WriteString(fmt.Sprintf("  localhost:%s \u2192 %s:22  (transfer, PID %d)\n", port, m.cfg.VMName, pid))
+		}
 	} else if len(m.cfg.PortMappings()) > 0 {
 		b.WriteString("\n")
 		b.WriteString(dimStyle.Render("No active tunnels"))

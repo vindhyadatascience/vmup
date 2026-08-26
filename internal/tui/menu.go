@@ -9,6 +9,8 @@ const (
 	actionStartTunnels
 	actionStopTunnels
 	actionSSH
+	actionTransfer
+	actionTransferTunnel
 	actionDestroy
 	actionStopAll
 	actionAttachDiskToVM

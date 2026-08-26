@@ -50,6 +50,11 @@ type App struct {
 	confirmValue     *bool
 	confirmNameValue *string
 
+	// File transfer state
+	transferForm   transferFormModel
+	transferTunnel transferTunnelModel
+	activeTransfer gcloud.TransferSpec
+
 	// Disk operation state
 	diskForm    diskFormModel
 	diskImport  diskImportModel
@@ -85,6 +90,14 @@ func NewApp(embeddedMainTF, embeddedDiskTF, embeddedDiskDeletable string) *App {
 		embeddedDiskTF:        embeddedDiskTF,
 		embeddedDiskDeletable: embeddedDiskDeletable,
 	}
+}
+
+// Cleanup releases resources that should not outlive the vmup process.
+// Service tunnels deliberately survive (recoverTunnels reattaches to them on the
+// next run); transfer tunnels are scoped to one task and would otherwise linger
+// holding the local port the next transfer wants.
+func (a *App) Cleanup() {
+	a.tunnelMgr.StopTransferTunnels()
 }
 
 func (a *App) SetProgram(p *tea.Program) {
@@ -350,6 +363,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// A transfer tunnel is up: leave the progress screen and show the commands.
+	if msg, ok := msg.(transferTunnelReadyMsg); ok {
+		a.bgRunning = false
+		a.transferTunnel = newTransferTunnelModel(msg.cfg, msg.port)
+		a.screen = screenTransferTunnel
+		return a, nil
+	}
+
 	// Handle auth needed: suspend TUI and run gcloud auth interactively
 	if msg, ok := msg.(authNeededMsg); ok {
 		a.progress.lines = append(a.progress.lines, infoStyle.Render("Authentication required. Launching gcloud auth..."))
@@ -374,6 +395,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case strings.Contains(a.bgTitle, "Launching") || strings.Contains(a.bgTitle, "Updating"):
 			return a, a.cmdLaunchVM(a.activeConfig)
+		case strings.Contains(a.bgTitle, "Copying files"):
+			return a, a.cmdTransfer(a.activeConfig, a.activeTransfer)
+		case strings.Contains(a.bgTitle, "Opening transfer tunnel"):
+			return a, a.cmdStartTransferTunnel(a.activeConfig)
 		case strings.Contains(a.bgTitle, "Destroying VM"):
 			return a, a.cmdDestroyVM()
 		case strings.Contains(a.bgTitle, "Creating data disk"):
@@ -402,6 +427,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd = a.updateProgress(msg)
 	case screenStatus:
 		model, cmd = a.updateStatus(msg)
+	case screenTransfer:
+		model, cmd = a.updateTransfer(msg)
+	case screenTransferTunnel:
+		model, cmd = a.updateTransferTunnel(msg)
 	case screenConfirmDestroy:
 		model, cmd = a.updateConfirmDestroy(msg)
 	case screenConfirmDestroyName:
@@ -489,6 +518,10 @@ func (a App) View() string {
 		return a.viewConfirmStopAll()
 	case screenConfirmCreate:
 		return a.viewConfirmCreate()
+	case screenTransfer:
+		return a.transferForm.View()
+	case screenTransferTunnel:
+		return a.transferTunnel.View()
 	case screenDiskCreate:
 		return a.diskForm.View()
 	case screenDiskImport:
@@ -626,6 +659,26 @@ func (a App) dispatchAction(action menuAction) (tea.Model, tea.Cmd) {
 		return a, tea.ExecProcess(c, func(err error) tea.Msg {
 			return backToMenuMsg{}
 		})
+
+	case actionTransfer:
+		a.transferForm = newTransferModel(a.activeConfig)
+		a.screen = screenTransfer
+		return a, a.transferForm.Init()
+
+	case actionTransferTunnel:
+		cfg := a.activeConfig
+		// Reuse the VM's existing transfer tunnel rather than opening a second one.
+		if port := a.tunnelMgr.TransferTunnelPort(cfg.VMName); port != "" {
+			a.transferTunnel = newTransferTunnelModel(cfg, port)
+			a.screen = screenTransferTunnel
+			return a, nil
+		}
+		a.bgRunning = true
+		a.bgSourceTab = tabInstances
+		a.bgTitle = "Opening transfer tunnel..."
+		a.progress = newProgressModel("Opening transfer tunnel...")
+		a.screen = screenProgress
+		return a, tea.Batch(a.progress.Init(), a.cmdStartTransferTunnel(cfg))
 
 	case actionStopAll:
 		a.confirmValue = new(bool)
@@ -1333,6 +1386,100 @@ func (a App) refreshDiskList() (App, tea.Cmd) {
 	a.vmlist.loading = true
 		a.vmlist.refreshStart = time.Now()
 	return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
+}
+
+// --- File Transfer Screens ---
+
+func (a App) updateTransfer(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.transferForm, cmd = a.transferForm.Update(msg)
+
+	switch msg := msg.(type) {
+	case transferFormDoneMsg:
+		a.activeConfig = msg.cfg
+		a.activeTransfer = msg.spec
+		a.bgRunning = true
+		a.bgSourceTab = tabInstances
+		a.bgTitle = "Copying files..."
+		a.progress = newProgressModel("Copying files...")
+		a.screen = screenProgress
+		return a, tea.Batch(a.progress.Init(), a.cmdTransfer(msg.cfg, msg.spec))
+
+	case transferFormCancelMsg:
+		a, cmd = a.refreshVMList()
+		return a, cmd
+	}
+
+	return a, cmd
+}
+
+func (a App) updateTransferTunnel(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	a.transferTunnel, cmd = a.transferTunnel.Update(msg)
+
+	switch msg := msg.(type) {
+	case transferTunnelCloseMsg:
+		a.tunnelMgr.StopTransferTunnels()
+		a, cmd = a.refreshVMList()
+		a.vmlist.flashMsg = fmt.Sprintf("Transfer tunnel for %s closed", msg.cfg.VMName)
+		a.vmlist.flashIsError = false
+		return a, cmd
+
+	case backToMenuMsg:
+		a, cmd = a.refreshVMList()
+		return a, cmd
+	}
+
+	return a, cmd
+}
+
+// cmdTransfer runs a single scp transfer, streaming gcloud/scp output into the
+// progress log.
+func (a *App) cmdTransfer(cfg config.Config, spec gcloud.TransferSpec) tea.Cmd {
+	return func() tea.Msg {
+		if !gcloud.HasAuth() {
+			return authNeededMsg{kind: "login"}
+		}
+
+		a.program.Send(logLineMsg(gcloud.DescribeTransfer(cfg, spec)))
+
+		cmd := gcloud.SCPCommand(cfg, spec)
+		lw := newLogWriter(a.program)
+		cmd.Stdout = lw
+		cmd.Stderr = lw
+
+		err := cmd.Run()
+		lw.Flush()
+
+		if err != nil {
+			return progressDoneMsg{err: fmt.Errorf("copy failed: %w", err)}
+		}
+		return progressDoneMsg{}
+	}
+}
+
+// cmdStartTransferTunnel opens a raw IAP tunnel to the VM's SSH port and hands
+// off to the panel that shows the generated scp/rsync/sftp commands.
+func (a *App) cmdStartTransferTunnel(cfg config.Config) tea.Cmd {
+	return func() tea.Msg {
+		if !gcloud.HasAuth() {
+			return authNeededMsg{kind: "login"}
+		}
+
+		port := a.tunnelMgr.FreeTransferPort(2222)
+		a.program.Send(logLineMsg(fmt.Sprintf("Opening IAP tunnel localhost:%s → %s:22 ...", port, cfg.VMName)))
+
+		if err := a.tunnelMgr.StartTransferTunnel(cfg, port); err != nil {
+			return progressDoneMsg{err: fmt.Errorf("open transfer tunnel: %w", err)}
+		}
+
+		return transferTunnelReadyMsg{cfg: cfg, port: port}
+	}
+}
+
+type transferTunnelReadyMsg struct {
+	cfg  config.Config
+	port string
 }
 
 // --- Disk Create Screen ---

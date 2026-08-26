@@ -68,6 +68,7 @@ All actions work on the selected instance, either by direct key or through the
 | ++i++ | Info | Detailed view of the VM's configuration |
 | ++s++ | Start | Starts a stopped VM and re-establishes its SSH tunnels |
 | ++c++ | Connect | Interactive SSH session via IAP (running VMs only) |
+| ++t++ | Copy files | Upload or download files over IAP (running VMs only) |
 | ++x++ | Stop | Closes tunnels, and optionally stops the VM to save costs |
 | ++shift+x++ | Stop all | Stops every VM and all tunnels |
 | ++shift+d++ | Destroy | Runs `terraform destroy` and removes all the VM's infrastructure |

@@ -594,6 +594,16 @@ func (m vmListModel) Update(msg tea.Msg) (vmListModel, tea.Cmd) {
 			return m, func() tea.Msg {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
 			}
+		case "t":
+			vm := m.displayVM(m.cursor)
+			if vm.status != "RUNNING" {
+				m.flashMsg = fmt.Sprintf("Copying files requires a running VM (current status: %s). Use 's' to start it first.", vm.status)
+				m.flashIsError = true
+				return m, nil
+			}
+			return m, func() tea.Msg {
+				return vmListActionMsg{action: actionTransfer, cfg: vm.cfg}
+			}
 		case "a":
 			vm := m.displayVM(m.cursor)
 			if vm.status != "RUNNING" {
@@ -689,7 +699,12 @@ func statusColorStyle(status string, base lipgloss.Style) lipgloss.Style {
 func (m vmListModel) statusText(vm vmEntry) string {
 	s := vm.status
 	if m.tunnelMgr != nil && vm.status == "RUNNING" {
-		if count := m.tunnelMgr.TunnelCount(vm.cfg.VMName); count == 1 {
+		if port := m.tunnelMgr.TransferTunnelPort(vm.cfg.VMName); port != "" {
+			// Surface transfer tunnels distinctly — they are task-scoped and
+			// meant to be closed, unlike long-lived service tunnels.
+			count := m.tunnelMgr.TunnelCount(vm.cfg.VMName)
+			s = fmt.Sprintf("%s (%d tunnels, transfer :%s)", vm.status, count, port)
+		} else if count := m.tunnelMgr.TunnelCount(vm.cfg.VMName); count == 1 {
 			s = fmt.Sprintf("%s (1 tunnel)", vm.status)
 		} else if count > 1 {
 			s = fmt.Sprintf("%s (%d tunnels)", vm.status, count)
@@ -911,6 +926,9 @@ func (m vmListModel) viewTable() string {
 					b.WriteString(infoStyle.Render(fmt.Sprintf("  Tunnel active: http://localhost:%s (PID %d)", pp.Local, pid)) + "\n")
 				}
 			}
+			if port, pid := transferTunnelEntry(pids); port != "" {
+				b.WriteString(infoStyle.Render(fmt.Sprintf("  Transfer tunnel: localhost:%s \u2192 %s:22 (PID %d)", port, vm.cfg.VMName, pid)) + "\n")
+			}
 		}
 	}
 
@@ -986,6 +1004,10 @@ func (m vmListModel) viewCards() string {
 						infoStyle.Render(fmt.Sprintf("http://localhost:%s", pp.Local)) + "\n")
 				}
 			}
+			if port, _ := transferTunnelEntry(pids); port != "" {
+				b.WriteString(indent + cardLabel.Render("Transfer:") +
+					infoStyle.Render(fmt.Sprintf("localhost:%s \u2192 :22", port)) + "\n")
+			}
 		}
 
 		b.WriteString(sep + "\n")
@@ -1014,6 +1036,7 @@ func (m vmListModel) viewHelpDialog() string {
 		{"i", "View VM info"},
 		{"s", "Start VM & connect tunnels"},
 		{"c", "Connect through SSH"},
+		{"t", "Copy files to/from VM"},
 		{"a", "Attach disk to VM"},
 		{"d", "Detach disk from VM"},
 		{"x", "Stop VM"},

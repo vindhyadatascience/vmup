@@ -11,17 +11,23 @@ import (
 )
 
 type logLineMsg string
+
+// logReplaceLineMsg overwrites the last log line instead of appending one. It
+// carries output that arrived carriage-return terminated — progress meters that
+// redraw a single line in place, such as scp's.
+type logReplaceLineMsg string
+
 type progressDoneMsg struct{ err error }
 type authNeededMsg struct{ kind string }
 type authRetryMsg struct{}
 
 type progressModel struct {
-	spinner    spinner.Model
-	viewport   viewport.Model
-	lines      []string
-	title      string
-	done       bool
-	err        error
+	spinner      spinner.Model
+	viewport     viewport.Model
+	lines        []string
+	title        string
+	done         bool
+	err          error
 	userScroll   bool // true if user has scrolled away from bottom
 	hScroll      int  // horizontal scroll offset
 	startTime    time.Time
@@ -81,6 +87,17 @@ func (m progressModel) Update(msg tea.Msg) (progressModel, tea.Cmd) {
 
 	case logLineMsg:
 		m.lines = append(m.lines, string(msg))
+		m.renderContent()
+		if !m.userScroll {
+			m.viewport.GotoBottom()
+		}
+
+	case logReplaceLineMsg:
+		if len(m.lines) == 0 {
+			m.lines = append(m.lines, string(msg))
+		} else {
+			m.lines[len(m.lines)-1] = string(msg)
+		}
 		m.renderContent()
 		if !m.userScroll {
 			m.viewport.GotoBottom()
@@ -180,17 +197,17 @@ func (m progressModel) View() string {
 
 // logWriter sends each line written to it as a tea.Msg
 type logWriter struct {
-	program *tea.Program
-	buf     string
+	send func(tea.Msg)
+	buf  string
 }
 
 func newLogWriter(p *tea.Program) *logWriter {
-	return &logWriter{program: p}
+	return &logWriter{send: p.Send}
 }
 
 func (w *logWriter) Flush() {
 	if w.buf != "" {
-		w.program.Send(logLineMsg(w.buf))
+		w.send(logLineMsg(w.buf))
 		w.buf = ""
 	}
 }
@@ -198,13 +215,26 @@ func (w *logWriter) Flush() {
 func (w *logWriter) Write(p []byte) (int, error) {
 	w.buf += string(p)
 	for {
-		idx := strings.Index(w.buf, "\n")
+		idx := strings.IndexAny(w.buf, "\r\n")
 		if idx == -1 {
 			break
 		}
+
 		line := w.buf[:idx]
+		// A lone \r means the writer is redrawing the current line (scp's
+		// progress meter); \r\n is an ordinary line break with CRLF endings.
+		inPlace := w.buf[idx] == '\r'
+		if inPlace && idx+1 < len(w.buf) && w.buf[idx+1] == '\n' {
+			idx++
+			inPlace = false
+		}
 		w.buf = w.buf[idx+1:]
-		w.program.Send(logLineMsg(line))
+
+		if inPlace {
+			w.send(logReplaceLineMsg(line))
+		} else {
+			w.send(logLineMsg(line))
+		}
 	}
 	return len(p), nil
 }

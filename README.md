@@ -62,6 +62,8 @@ The TUI presents a menu with the following options:
 
 - **SSH Session** - Open an interactive SSH session via IAP. The TUI suspends while SSH is active and resumes on exit.
 
+- **Copy Files** - Transfer files and directories between your machine and a VM over IAP with `gcloud compute scp`, in either direction. For large or repeated transfers, the `transfer-tunnel` command opens an IAP tunnel to the VM's SSH port and prints ready-to-run `scp`, `rsync`, and `sftp` commands, so native tools and VS Code Remote-SSH work too.
+
 - **Destroy VM** - Tear down all resources with `terraform destroy` and clean up the project directory.
 
 ## How It Works
@@ -70,6 +72,7 @@ The TUI presents a menu with the following options:
 - Terraform binary is auto-downloaded to `~/.vmup/bin/` on first run via [hc-install](https://github.com/hashicorp/hc-install)
 - The Terraform config (`main.tf`) is embedded in the binary via `go:embed`
 - SSH tunnels use `gcloud compute ssh` with IAP tunneling (`--tunnel-through-iap`)
+- File transfers use `gcloud compute scp --tunnel-through-iap`; transfer tunnels use `gcloud compute start-iap-tunnel` to reach the VM's SSH port directly
 
 ## Building
 

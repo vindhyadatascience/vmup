@@ -25,6 +25,12 @@ func killProcessTree(proc *os.Process) error {
 }
 
 func killByName(vmName string) {
-	_ = exec.Command("pkill", "-f",
-		fmt.Sprintf("gcloud compute ssh %s", vmName)).Run()
+	// Two process shapes to match: service tunnels run `gcloud compute ssh`,
+	// transfer tunnels run `gcloud compute start-iap-tunnel`.
+	for _, pat := range []string{
+		fmt.Sprintf("gcloud compute ssh %s", vmName),
+		fmt.Sprintf("gcloud compute start-iap-tunnel %s", vmName),
+	} {
+		_ = exec.Command("pkill", "-f", pat).Run()
+	}
 }

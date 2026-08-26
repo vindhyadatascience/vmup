@@ -7,6 +7,8 @@ const (
 	screenConfig
 	screenProgress
 	screenStatus
+	screenTransfer
+	screenTransferTunnel
 	screenConfirmDestroy
 	screenConfirmDestroyName
 	screenConfirmStopVM
