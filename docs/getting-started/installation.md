@@ -14,10 +14,16 @@ download the latest release, verify your platform, and put the binary on your `P
     falls back, it warns when `~/.local/bin` is not on your `PATH`.
 
     !!! note "macOS Gatekeeper"
-        Binaries installed via the script run as-is. If you instead download a release
-        archive from a browser, macOS may flag the binary as from an unidentified
-        developer; clear the quarantine flag with `xattr -d com.apple.quarantine ./vmup`
-        (or right-click the binary in Finder → **Open**).
+        As of v1.9.1, release binaries are signed with a Developer ID certificate and
+        notarized by Apple, so they run without a Gatekeeper prompt no matter how you
+        install them. A notarization ticket cannot be stapled to a bare binary, so
+        Gatekeeper verifies it online the first time a browser-downloaded copy runs —
+        on a machine with no network that check can still fail until you reconnect.
+
+        On **v1.9.0 and earlier** the binaries are unsigned. Installing via the script
+        is unaffected (`curl` does not set the quarantine flag), but a release archive
+        downloaded in a browser is flagged as from an unidentified developer; clear it
+        with `xattr -d com.apple.quarantine ./vmup`.
 
 === "Windows (PowerShell)"
 
