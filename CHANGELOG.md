@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-27
+
 ### Added
 - Copy files to and from a VM over IAP. Press `t` on a running instance (or
   run `copy-files` from the command palette) to open a transfer form: pick a
