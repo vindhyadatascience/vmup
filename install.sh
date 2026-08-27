@@ -108,11 +108,25 @@ chmod +x "${TMPDIR}/${BINARY}"
 # DIRECTORY, and /usr/local/bin is root-owned on macOS. Set VMUP_INSTALL_DIR to
 # override (e.g. VMUP_INSTALL_DIR="$CONDA_PREFIX/bin" to scope the install to an
 # active conda environment).
+# Install by writing a new file alongside the target and renaming over it.
+# A plain `cp` truncates the destination in place, keeping the same inode: if
+# the running vmup is that inode, macOS kills the process (its code signature
+# covers page hashes that no longer match) and the binary stays unrunnable.
+# rename(2) swaps in a new inode, so a running vmup is untouched.
 install_to() {
     dest="$1"
     mkdir -p "$dest" 2>/dev/null || return 1
     [ -w "$dest" ] || return 1
-    cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}" || return 1
+    tmp="${dest}/.${BINARY}.new.$$"
+    if ! cp "${TMPDIR}/${BINARY}" "$tmp"; then
+        rm -f "$tmp"
+        return 1
+    fi
+    chmod 755 "$tmp" 2>/dev/null || true
+    if ! mv -f "$tmp" "${dest}/${BINARY}"; then
+        rm -f "$tmp"
+        return 1
+    fi
     return 0
 }
 
@@ -120,7 +134,16 @@ install_to_privileged() {
     dest="$1"
     command -v sudo >/dev/null 2>&1 || return 1
     info "Writing to ${dest} requires elevated permissions..."
-    sudo cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}" || return 1
+    tmp="${dest}/.${BINARY}.new.$$"
+    if ! sudo cp "${TMPDIR}/${BINARY}" "$tmp"; then
+        sudo rm -f "$tmp"
+        return 1
+    fi
+    sudo chmod 755 "$tmp" 2>/dev/null || true
+    if ! sudo mv -f "$tmp" "${dest}/${BINARY}"; then
+        sudo rm -f "$tmp"
+        return 1
+    fi
     return 0
 }
 
