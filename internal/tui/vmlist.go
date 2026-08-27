@@ -24,14 +24,14 @@ type vmEntry struct {
 }
 
 type vmListModel struct {
-	vms         []vmEntry
-	cursor      int
-	loading     bool
-	loadingText string // custom loading text, empty = default
-	spinner     spinner.Model
-	flashMsg     string
-	flashIsError bool
-	tunnelMgr    *tunnel.Manager
+	vms           []vmEntry
+	cursor        int
+	loading       bool
+	loadingText   string // custom loading text, empty = default
+	spinner       spinner.Model
+	flashMsg      string
+	flashIsError  bool
+	tunnelMgr     *tunnel.Manager
 	lastRefreshed time.Time
 	refreshStart  time.Time
 
@@ -49,10 +49,10 @@ type vmListModel struct {
 	hideHelpBar bool
 
 	// Filter
-	filterActive    bool
-	filterInput     string
-	filterProp      string
-	filterValue     string
+	filterActive     bool
+	filterInput      string
+	filterProp       string
+	filterValue      string
 	filteredIndices  []int
 	savedFilterProp  string
 	savedFilterValue string
@@ -754,6 +754,13 @@ func renderTitle(offset int) string {
 		}
 		t := float64((i+offset)%gradientCycleLen) / float64(gradientCycleLen)
 		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(gradientColor(t)).Render(string(ch)))
+	}
+	// Appended after the gradient loop so the badge keeps a single steady
+	// colour rather than cycling with the title.
+	if updateAvailable != "" {
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("42")).
+			Render("  ⬆ " + updateAvailable + " available (u)"))
 	}
 	return b.String()
 }

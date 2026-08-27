@@ -21,11 +21,11 @@ type diskEntry struct {
 }
 
 type diskListModel struct {
-	disks       []diskEntry
-	cursor      int
-	loading     bool
-	loadingText string // custom loading text, empty = default
-	spinner     spinner.Model
+	disks         []diskEntry
+	cursor        int
+	loading       bool
+	loadingText   string // custom loading text, empty = default
+	spinner       spinner.Model
 	lastRefreshed time.Time
 	refreshStart  time.Time
 
@@ -46,10 +46,10 @@ type diskListModel struct {
 	hideHelpBar bool
 
 	// Filter
-	filterActive    bool
-	filterInput     string
-	filterProp      string
-	filterValue     string
+	filterActive     bool
+	filterInput      string
+	filterProp       string
+	filterValue      string
 	filteredIndices  []int
 	savedFilterProp  string
 	savedFilterValue string

@@ -38,6 +38,7 @@ type cmdPaletteSwitchTabMsg struct{}
 type cmdPaletteRefreshMsg struct{ tab tab }
 type cmdPaletteProgressMsg struct{}
 type cmdPaletteSettingsMsg struct{}
+type cmdPaletteUpdateMsg struct{}
 type cmdPaletteFilterMsg struct {
 	args string // optional pre-filled filter args from ":filter prop term"
 }
@@ -311,7 +312,7 @@ func (m cmdPaletteModel) viewWide(w int) string {
 			row := nameStyle.Render(nameText) + "  " + descStyle.Render(cmd.desc)
 
 			if i == m.cursor {
-				b.WriteString(selectedBg.Render("> " + row) + "\n")
+				b.WriteString(selectedBg.Render("> "+row) + "\n")
 			} else {
 				b.WriteString("  " + row + "\n")
 			}
@@ -516,6 +517,11 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Data Disks", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
+	if updateAvailable != "" {
+		cmds = append(cmds, makeCommand("u", "update", "vmup "+updateAvailable+" available", catUtility, cmdColorNav, func() tea.Msg {
+			return cmdPaletteUpdateMsg{}
+		}))
+	}
 	cmds = append(cmds, makeCommand(",", "settings", "Settings", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSettingsMsg{}
 	}))
@@ -580,6 +586,11 @@ func diskPaletteCommands(disks []diskEntry, cursor int, bgRunning bool, progress
 	cmds = append(cmds, makeCommand("tab", "switch-tab", "Switch to Instances", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSwitchTabMsg{}
 	}))
+	if updateAvailable != "" {
+		cmds = append(cmds, makeCommand("u", "update", "vmup "+updateAvailable+" available", catUtility, cmdColorNav, func() tea.Msg {
+			return cmdPaletteUpdateMsg{}
+		}))
+	}
 	cmds = append(cmds, makeCommand(",", "settings", "Settings", catUtility, cmdColorNav, func() tea.Msg {
 		return cmdPaletteSettingsMsg{}
 	}))

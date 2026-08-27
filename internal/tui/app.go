@@ -56,15 +56,15 @@ type App struct {
 	activeTransfer gcloud.TransferSpec
 
 	// Disk operation state
-	diskForm    diskFormModel
-	diskImport  diskImportModel
-	diskResize      diskResizeModel
-	diskAttach      diskAttachModel
-	diskMountOpts   diskMountOptionsModel
-	diskDetachVM    diskDetachFromVMModel
-	activeDisk      diskEntry
-	lastAttachOpts  diskAttachDoneMsg
-	detachInstance  *string
+	diskForm       diskFormModel
+	diskImport     diskImportModel
+	diskResize     diskResizeModel
+	diskAttach     diskAttachModel
+	diskMountOpts  diskMountOptionsModel
+	diskDetachVM   diskDetachFromVMModel
+	activeDisk     diskEntry
+	lastAttachOpts diskAttachDoneMsg
+	detachInstance *string
 
 	// Settings
 	settings settingsModel
@@ -105,7 +105,7 @@ func (a *App) SetProgram(p *tea.Program) {
 }
 
 func (a App) Init() tea.Cmd {
-	return tea.Batch(a.vmlist.Init(), a.disklist.Init(), logoTick())
+	return tea.Batch(a.vmlist.Init(), a.disklist.Init(), logoTick(), checkForUpdate(Version))
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -141,6 +141,20 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.disklist, _ = a.disklist.Update(msg)
 		if a.cmdPalette.active && a.activeTab == tabDataDisks {
 			a.cmdPalette.Rebuild(diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done))
+		}
+		return a, nil
+	case updateCheckedMsg:
+		// Only ever sets a badge. Nothing is opened or interrupted: this
+		// arrives up to ten seconds after launch, by which time the user may
+		// be anywhere, and stealing the screen then would be hostile.
+		updateAvailable = msg.latest
+		if a.cmdPalette.active {
+			switch a.activeTab {
+			case tabInstances:
+				a.cmdPalette.Rebuild(vmPaletteCommands(a.vmlist.vms, a.vmlist.cursor, a.bgRunning, a.progress.done))
+			case tabDataDisks:
+				a.cmdPalette.Rebuild(diskPaletteCommands(a.disklist.disks, a.disklist.cursor, a.bgRunning, a.progress.done))
+			}
 		}
 		return a, nil
 	case resizeDoneMsg:
@@ -180,7 +194,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cmdPaletteRefreshMsg:
 		if msg.tab == tabInstances {
 			a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+			a.vmlist.refreshStart = time.Now()
 			return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 		}
 		a.disklist.loading = true
@@ -200,6 +214,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.settings = newSettingsModel(a.width)
 		a.screen = screenSettings
 		return a, a.settings.Init()
+	case cmdPaletteUpdateMsg:
+		a.screen = screenUpdateInfo
+		return a, nil
 	}
 
 	// Command palette — capture all keys when active
@@ -290,6 +307,13 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return a, a.settings.Init()
 				}
 
+				// Intercept 'u' for update information. Safe during a
+				// background operation: it only shows text.
+				if keyMsg.String() == "u" {
+					a.screen = screenUpdateInfo
+					return a, nil
+				}
+
 				// Intercept 'p' key for progress viewing regardless of active tab
 				if keyMsg.String() == "p" {
 					if a.bgRunning {
@@ -336,7 +360,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					// Refresh VM list
 					a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+					a.vmlist.refreshStart = time.Now()
 					return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 				} else if a.bgSourceTab == tabDataDisks {
 					if doneMsg.err != nil {
@@ -348,9 +372,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					// Refresh both lists (disk ops affect VM attachment display)
 					a.disklist.loading = true
-		a.disklist.refreshStart = time.Now()
+					a.disklist.refreshStart = time.Now()
 					a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+					a.vmlist.refreshStart = time.Now()
 					return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
 				}
 			}
@@ -463,6 +487,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		model, cmd = a.updateDiskDetachFromVMScreen(msg)
 	case screenSettings:
 		model, cmd = a.updateSettings(msg)
+	case screenUpdateInfo:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			switch keyMsg.String() {
+			case "esc", "q", "enter":
+				a.screen = screenMain
+			}
+		}
+		return a, nil
 	case screenMain:
 		// Forward spinner ticks to non-active tab if it's loading,
 		// so its spinner keeps running and doesn't freeze.
@@ -544,6 +576,8 @@ func (a App) View() string {
 		return a.diskDetachVM.View()
 	case screenSettings:
 		return a.settings.View()
+	case screenUpdateInfo:
+		return renderUpdateInfo(a.width)
 	case screenMain:
 		a.vmlist.hideHelpBar = a.cmdPalette.active
 		a.disklist.hideHelpBar = a.cmdPalette.active
@@ -1076,7 +1110,7 @@ func (a App) refreshVMList() (App, tea.Cmd) {
 	a.screen = screenMain
 	a.activeTab = tabInstances
 	a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+	a.vmlist.refreshStart = time.Now()
 	return a, tea.Batch(loadVMList, a.vmlist.spinner.Tick)
 }
 
@@ -1114,7 +1148,7 @@ func (a App) updateVMList(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.action == actionAttachDiskToVM {
 			a.activeConfig = msg.cfg
 			a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+			a.vmlist.refreshStart = time.Now()
 			a.vmlist.loadingText = "Loading available disks..."
 			return a, tea.Batch(a.vmlist.spinner.Tick, loadDisksForVM(msg.cfg))
 		}
@@ -1382,9 +1416,9 @@ func (a App) refreshDiskList() (App, tea.Cmd) {
 	a.screen = screenMain
 	a.activeTab = tabDataDisks
 	a.disklist.loading = true
-		a.disklist.refreshStart = time.Now()
+	a.disklist.refreshStart = time.Now()
 	a.vmlist.loading = true
-		a.vmlist.refreshStart = time.Now()
+	a.vmlist.refreshStart = time.Now()
 	return a, tea.Batch(loadDiskList, a.disklist.spinner.Tick, loadVMList, a.vmlist.spinner.Tick)
 }
 

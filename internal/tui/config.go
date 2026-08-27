@@ -73,8 +73,8 @@ type configDoneMsg struct {
 type configCancelMsg struct{}
 
 type configDataReadyMsg struct {
-	rates        map[string]gcloud.MachineTypeRate
-	machineTypes []gcloud.MachineTypeInfo
+	rates         map[string]gcloud.MachineTypeRate
+	machineTypes  []gcloud.MachineTypeInfo
 	gcpProject    string              // detected from gcloud config
 	regionZones   map[string][]string // region → zones
 	editImageArch string              // architecture of the edited VM's locked image
@@ -97,11 +97,11 @@ const (
 // --- Model ---
 
 type configModel struct {
-	phase   configPhase
-	form    *huh.Form
-	cfg     *config.Config
-	isEdit  bool
-	spinner spinner.Model
+	phase     configPhase
+	form      *huh.Form
+	cfg       *config.Config
+	isEdit    bool
+	spinner   spinner.Model
 	loadStart time.Time
 
 	billingRates    map[string]gcloud.MachineTypeRate
@@ -202,7 +202,9 @@ func (m configModel) Init() tea.Cmd {
 				pid = platform.DetectGCPProject()
 			}
 
-			type ratesResult struct{ rates map[string]gcloud.MachineTypeRate }
+			type ratesResult struct {
+				rates map[string]gcloud.MachineTypeRate
+			}
 			type typesResult struct{ types []gcloud.MachineTypeInfo }
 			type imagesResult struct {
 				custom   []gcloud.ImageInfo

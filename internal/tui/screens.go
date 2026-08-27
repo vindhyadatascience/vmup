@@ -25,6 +25,7 @@ const (
 	screenDiskDetach
 	screenDiskDetachFromVM
 	screenSettings
+	screenUpdateInfo
 )
 
 type tab int

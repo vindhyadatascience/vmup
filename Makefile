@@ -2,7 +2,11 @@ BINARY := vmup
 
 # Version stamped into local builds (releases are stamped by GoReleaser).
 # Derived from git so there is no version string to maintain by hand.
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# The +local marker distinguishes a local build from a release. Without it, a
+# clean checkout sitting exactly on a tag produces a bare version string that
+# is indistinguishable from the released binary, and self-update would offer to
+# replace a developer's own build with the release.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)+local
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build run clean build-all docs-serve docs-build docs-clean
