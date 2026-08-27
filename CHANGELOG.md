@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Copy files to and from a VM over IAP. Press `t` on a running instance (or
+  run `copy-files` from the command palette) to open a transfer form: pick a
+  direction, a local path, and a remote path. `--recurse` is set automatically
+  when the local path is a directory. Runs `gcloud compute scp
+  --tunnel-through-iap`, so it uses the same IAP path, IAM grant, and SSH keys
+  as the existing SSH and tunnel features — no infrastructure changes needed.
+- A `transfer-tunnel` command in the palette opens a raw IAP tunnel to the VM's
+  SSH port and shows ready-to-run `scp`, `rsync`, and `sftp` commands for it,
+  so native tools and VS Code Remote-SSH can reach the instance. Transfer
+  tunnels appear in the instance list and are closed when vmup exits, unlike
+  service tunnels, which persist by design.
+
+### Fixed
+- The progress log now renders carriage-return output in place instead of
+  buffering it, so live progress meters update as they run rather than
+  appearing only once the command finishes.
+
 ## [1.8.0] - 2026-07-01
 
 ### Added

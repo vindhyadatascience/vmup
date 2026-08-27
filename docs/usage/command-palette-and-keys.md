@@ -98,6 +98,8 @@ below shows both:
 | ++n++ | `new-instance` | Create a new VM instance (or a new disk on the Data Disks tab) |
 | ++s++ | `start-instance` | Start a VM and connect its tunnels |
 | ++c++ | `connect` | Open an SSH session (running VMs only) |
+| ++t++ | `copy-files` | Copy files to or from the VM (running VMs only) |
+| — | `transfer-tunnel` | Open a tunnel for scp/rsync/sftp (palette only) |
 | ++shift+i++ | `import-disk` | Import an existing disk (Data Disks tab) |
 
 ### Modify & Inspect
@@ -157,6 +159,7 @@ bindings:
   <span class="t-key">│</span>  <span class="t-key">e</span>           Edit VM configuration   <span class="t-key">│</span>
   <span class="t-key">│</span>  <span class="t-key">s</span>           Start VM &amp; connect      <span class="t-key">│</span>
   <span class="t-key">│</span>  <span class="t-key">c</span>           Connect through SSH     <span class="t-key">│</span>
+  <span class="t-key">│</span>  <span class="t-key">t</span>           Copy files to/from VM   <span class="t-key">│</span>
   <span class="t-key">│</span>  <span class="t-key">x</span>           Stop VM                 <span class="t-key">│</span>
   <span class="t-key">│</span>  <span class="t-key">D</span>           Destroy VM              <span class="t-key">│</span>
   <span class="t-key">│</span>  <span class="t-key">:</span>           Command palette         <span class="t-key">│</span>

@@ -43,7 +43,14 @@ func main() {
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	app.SetProgram(p)
 
-	if _, err := p.Run(); err != nil {
+	_, err := p.Run()
+
+	// Covers every exit path, including `q`, which bubbletea handles before
+	// Update sees the QuitMsg. Called explicitly rather than deferred so the
+	// os.Exit below cannot skip it.
+	app.Cleanup()
+
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

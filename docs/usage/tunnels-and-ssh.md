@@ -48,6 +48,53 @@ screen lists each tunnel's local URL.
 Press ++c++ on a running instance to open a full SSH session through IAP. The TUI
 suspends while the session is active and resumes when you exit the shell.
 
+## Copying files
+
+Press ++t++ on a running instance to open the transfer form. Pick a direction,
+a local path, and a path on the VM; vmup runs:
+
+```bash
+gcloud compute scp --tunnel-through-iap <source> <destination>
+```
+
+This takes the same IAP path as SSH, so it needs no extra setup — the
+`roles/iap.tunnelResourceAccessor` grant and the firewall rule that already
+allow you to connect also allow you to copy. `--recurse` is applied
+automatically when the local path is a directory.
+
+## Using scp, rsync, and sftp directly
+
+`gcloud compute scp` cannot resume an interrupted copy or sync only what
+changed. For large or repeated transfers, open a **transfer tunnel** instead:
+press ++:++ and run `transfer-tunnel`. vmup opens a raw IAP tunnel to the
+instance's SSH port and shows the exact commands to use it, for example:
+
+```bash
+scp -P 2222 -i ~/.ssh/google_compute_engine -o HostKeyAlias=my-vm \
+    ./local-file eric@localhost:~/
+
+rsync -av --progress \
+    -e 'ssh -p 2222 -i ~/.ssh/google_compute_engine -o HostKeyAlias=my-vm' \
+    ./local-dir/ eric@localhost:~/local-dir/
+```
+
+Three details the generated commands handle for you:
+
+- **`-i ~/.ssh/google_compute_engine`** — gcloud manages its own SSH key, which
+  is not the identity `ssh` would pick by default.
+- **`-o HostKeyAlias=<vm-name>`** — every VM reached this way looks like
+  `localhost:<port>` to SSH. Without the alias, connecting to a second VM on
+  the same port trips `REMOTE HOST IDENTIFICATION HAS CHANGED`.
+- **The port** — vmup picks the first free port at or above 2222.
+
+The same tunnel works for anything that speaks SSH, including `sftp`, GUI
+clients like Cyberduck, and VS Code Remote-SSH.
+
+Transfer tunnels are listed alongside service tunnels in the instance list and
+are closed when vmup exits. Service tunnels are deliberately different: they
+survive so that a long-running RStudio or Jupyter session stays reachable
+between runs.
+
 ## Setting up the VM after connecting
 
 A couple of one-time steps make a fresh VM more useful:

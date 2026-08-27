@@ -292,7 +292,7 @@ func (m cmdPaletteModel) viewWide(w int) string {
 		maxNameWidth := 0
 		for i := start; i < end; i++ {
 			cmd := m.commands[m.filtered[i]]
-			nameWithKey := cmd.name + " (" + cmd.key + ")"
+			nameWithKey := cmd.name + cmd.keySuffix()
 			if len(nameWithKey) > maxNameWidth {
 				maxNameWidth = len(nameWithKey)
 			}
@@ -307,7 +307,7 @@ func (m cmdPaletteModel) viewWide(w int) string {
 			nameStyle := lipgloss.NewStyle().
 				Foreground(cmd.color).
 				Width(maxNameWidth + 2)
-			nameText := cmd.name + " " + keyParenStyle.Render("("+cmd.key+")")
+			nameText := cmd.name + keyParenStyle.Render(cmd.keySuffix())
 			row := nameStyle.Render(nameText) + "  " + descStyle.Render(cmd.desc)
 
 			if i == m.cursor {
@@ -357,7 +357,7 @@ func (m cmdPaletteModel) viewCompact(w int) string {
 			cmd := m.commands[m.filtered[i]]
 			nameStyle := lipgloss.NewStyle().
 				Foreground(cmd.color)
-			nameText := nameStyle.Render(cmd.name) + " " + keyParenStyle.Render("("+cmd.key+")")
+			nameText := nameStyle.Render(cmd.name) + keyParenStyle.Render(cmd.keySuffix())
 			descText := "    " + descStyle.Render(cmd.desc)
 
 			if i == m.cursor {
@@ -409,6 +409,15 @@ var (
 	cmdColorNav         = lipgloss.Color("252") // light gray — filter, refresh, quit, utility
 )
 
+// keySuffix renders the " (k)" hint after a command name. Palette-only
+// commands carry no hot key and render without the empty parentheses.
+func (c paletteCommand) keySuffix() string {
+	if c.key == "" {
+		return ""
+	}
+	return " (" + c.key + ")"
+}
+
 func makeCommand(key, name, desc, category string, color lipgloss.Color, action func() tea.Msg) paletteCommand {
 	return paletteCommand{
 		key:      key,
@@ -443,6 +452,12 @@ func vmPaletteCommands(vms []vmEntry, cursor int, bgRunning bool, progressDone b
 		if vm.status == "RUNNING" {
 			cmds = append(cmds, makeCommand("c", "connect", "Connect through SSH", catCreate, cmdColorCreate, func() tea.Msg {
 				return vmListActionMsg{action: actionSSH, cfg: vm.cfg}
+			}))
+			cmds = append(cmds, makeCommand("t", "copy-files", "Copy files to/from the VM", catCreate, cmdColorCreate, func() tea.Msg {
+				return vmListActionMsg{action: actionTransfer, cfg: vm.cfg}
+			}))
+			cmds = append(cmds, makeCommand("", "transfer-tunnel", "Open a tunnel for scp/rsync/sftp", catCreate, cmdColorCreate, func() tea.Msg {
+				return vmListActionMsg{action: actionTransferTunnel, cfg: vm.cfg}
 			}))
 		}
 	}
