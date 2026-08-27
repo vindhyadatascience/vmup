@@ -46,9 +46,19 @@ try {
     Write-Info "Verifying checksum..."
     $checksumFile = "${Binary}_$($tag.TrimStart('v'))_checksums.txt"
     try {
-        $checksumText = (Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$checksumFile" -Headers $headers -UseBasicParsing).Content
+        $checksumResp = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$checksumFile" -Headers $headers -UseBasicParsing
     } catch {
         Write-Err "Could not download $checksumFile to verify the release."
+    }
+
+    # GitHub serves release assets as application/octet-stream, and with
+    # -UseBasicParsing that makes .Content a byte[] rather than a string.
+    # Splitting the byte array into lines yields numbers, not text, so the
+    # filename never matches. Decode explicitly.
+    if ($checksumResp.Content -is [byte[]]) {
+        $checksumText = [System.Text.Encoding]::UTF8.GetString($checksumResp.Content)
+    } else {
+        $checksumText = [string]$checksumResp.Content
     }
 
     $pattern = '\s' + [regex]::Escape($archive) + '\s*$'
