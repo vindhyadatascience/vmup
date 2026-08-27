@@ -18,7 +18,7 @@ curl -fsSL https://raw.githubusercontent.com/vindhyadatascience/vmup/main/instal
 
 This downloads the latest release binary and installs it to `/usr/local/bin` (falling back to `~/.local/bin`).
 
-> **macOS note:** binaries installed via the script run as-is. If you instead download a release archive from the browser, macOS Gatekeeper may flag the binary as from an unidentified developer; clear the quarantine flag with `xattr -d com.apple.quarantine ./vmup` (or right-click the binary in Finder → **Open**).
+> **macOS note:** release binaries are signed with a Developer ID certificate and notarized by Apple as of v1.9.1, so they run without a Gatekeeper prompt however you obtain them. Because a notarization ticket cannot be attached to a bare binary, Gatekeeper checks it online the first time — if you download a release archive in a browser on a machine with no network, it may still be refused until you reconnect.
 
 ### Windows (PowerShell)
 
