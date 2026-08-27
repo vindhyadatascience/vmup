@@ -64,6 +64,34 @@ info "Latest release: ${TAG}"
 info "Downloading ${ARCHIVE}..."
 download "https://github.com/${REPO}/releases/download/${TAG}/${ARCHIVE}" "${TMPDIR}/${ARCHIVE}"
 
+# Verify the download against the checksums published with the release. The
+# checksum file embeds the version without its leading "v" (GoReleaser strips
+# it), e.g. vmup_1.9.0_checksums.txt for tag v1.9.0.
+CHECKSUMS="${BINARY}_${TAG#v}_checksums.txt"
+info "Verifying checksum..."
+if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL=$(sha256sum "${TMPDIR}/${ARCHIVE}" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL=$(shasum -a 256 "${TMPDIR}/${ARCHIVE}" | awk '{print $1}')
+else
+    ACTUAL=""
+    warn "Neither sha256sum nor shasum found; skipping checksum verification."
+fi
+
+if [ -n "$ACTUAL" ]; then
+    EXPECTED=$(fetch "https://github.com/${REPO}/releases/download/${TAG}/${CHECKSUMS}" \
+        | grep " ${ARCHIVE}$" | awk '{print $1}')
+    if [ -z "$EXPECTED" ]; then
+        error "Could not find a checksum for ${ARCHIVE} in ${CHECKSUMS}."
+    fi
+    if [ "$ACTUAL" != "$EXPECTED" ]; then
+        error "Checksum mismatch for ${ARCHIVE}.
+  expected: ${EXPECTED}
+  actual:   ${ACTUAL}
+Refusing to install. Please report this at https://github.com/${REPO}/issues"
+    fi
+fi
+
 # Extract
 info "Extracting..."
 tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
@@ -74,38 +102,62 @@ fi
 chmod +x "${TMPDIR}/${BINARY}"
 
 # Install
+#
+# A user-owned directory is preferred so that `vmup update` can replace the
+# binary in place: replacing an executable requires write permission on its
+# DIRECTORY, and /usr/local/bin is root-owned on macOS. Set VMUP_INSTALL_DIR to
+# override (e.g. VMUP_INSTALL_DIR="$CONDA_PREFIX/bin" to scope the install to an
+# active conda environment).
 install_to() {
     dest="$1"
-    if [ -w "$dest" ]; then
-        cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}"
-        return 0
-    elif command -v sudo >/dev/null 2>&1; then
-        info "Writing to ${dest} requires elevated permissions..."
-        sudo cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}"
-        return 0
-    fi
-    return 1
+    mkdir -p "$dest" 2>/dev/null || return 1
+    [ -w "$dest" ] || return 1
+    cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}" || return 1
+    return 0
 }
 
-INSTALL_DIR=""
-if install_to "/usr/local/bin"; then
-    INSTALL_DIR="/usr/local/bin"
-else
-    FALLBACK="$HOME/.local/bin"
-    mkdir -p "$FALLBACK"
-    cp "${TMPDIR}/${BINARY}" "${FALLBACK}/${BINARY}"
-    INSTALL_DIR="$FALLBACK"
+install_to_privileged() {
+    dest="$1"
+    command -v sudo >/dev/null 2>&1 || return 1
+    info "Writing to ${dest} requires elevated permissions..."
+    sudo cp "${TMPDIR}/${BINARY}" "${dest}/${BINARY}" || return 1
+    return 0
+}
 
+note_path() {
     case ":$PATH:" in
-        *":${FALLBACK}:"*) ;;
+        *":$1:"*) ;;
         *)
-            warn "${FALLBACK} is not in your PATH."
+            warn "$1 is not in your PATH."
             echo "  Add it by appending this to your shell profile (~/.bashrc, ~/.zshrc, etc.):"
             echo ""
-            echo "    export PATH=\"${FALLBACK}:\$PATH\""
+            echo "    export PATH=\"$1:\$PATH\""
             echo ""
             ;;
     esac
+}
+
+INSTALL_DIR=""
+if [ -n "${VMUP_INSTALL_DIR:-}" ]; then
+    # An explicit target is honoured as given; no fallback, so a typo surfaces
+    # as an error instead of silently installing somewhere else.
+    if install_to "$VMUP_INSTALL_DIR"; then
+        INSTALL_DIR="$VMUP_INSTALL_DIR"
+        note_path "$INSTALL_DIR"
+    else
+        error "Could not install to VMUP_INSTALL_DIR=${VMUP_INSTALL_DIR} (not writable or could not be created)."
+    fi
+elif install_to "$HOME/.local/bin"; then
+    INSTALL_DIR="$HOME/.local/bin"
+    note_path "$INSTALL_DIR"
+elif install_to "/usr/local/bin" || install_to_privileged "/usr/local/bin"; then
+    INSTALL_DIR="/usr/local/bin"
+    warn "Installed to /usr/local/bin, which is not user-writable."
+    echo "  'vmup update' will not be able to replace this binary; re-run this"
+    echo "  installer to upgrade, or reinstall to a user-owned directory."
+    echo ""
+else
+    error "Could not find a writable install directory. Set VMUP_INSTALL_DIR to choose one."
 fi
 
 # Verify

@@ -40,9 +40,33 @@ try {
     $archivePath = Join-Path $tmpDir $archive
     Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$archive" -OutFile $archivePath -Headers $headers -UseBasicParsing
 
+    # Verify the download against the checksums published with the release. The
+    # checksum file embeds the version without its leading "v" (GoReleaser strips
+    # it), e.g. vmup_1.9.0_checksums.txt for tag v1.9.0.
+    Write-Info "Verifying checksum..."
+    $checksumFile = "${Binary}_$($tag.TrimStart('v'))_checksums.txt"
+    try {
+        $checksumText = (Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$checksumFile" -Headers $headers -UseBasicParsing).Content
+    } catch {
+        Write-Err "Could not download $checksumFile to verify the release."
+    }
+
+    $pattern = '\s' + [regex]::Escape($archive) + '\s*$'
+    $line = $checksumText -split '\r?\n' | Where-Object { $_ -match $pattern } | Select-Object -First 1
+    if (-not $line) {
+        Write-Err "Could not find a checksum for $archive in $checksumFile."
+    }
+
+    $expected = ($line -split '\s+')[0]
+    $actual = (Get-FileHash -Path $archivePath -Algorithm SHA256).Hash
+    # -ne on strings is case-insensitive in PowerShell; GoReleaser writes the
+    # digest lowercase and Get-FileHash returns it uppercase.
+    if ($actual -ne $expected) {
+        Write-Err "Checksum mismatch for $archive.`n  expected: $expected`n  actual:   $actual`nRefusing to install. Please report this at https://github.com/$Repo/issues"
+    }
+
     # Extract
     Write-Info "Extracting..."
-    $archivePath = Join-Path $tmpDir $archive
     tar xzf $archivePath -C $tmpDir
     $binaryPath = Join-Path $tmpDir "$Binary.exe"
 
