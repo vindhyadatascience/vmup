@@ -75,9 +75,42 @@ try {
     }
 
     # Install
+    #
+    # Windows will not let a running .exe be overwritten or deleted, but it DOES
+    # allow one to be renamed. So move any existing binary aside, move the new
+    # one into place, and try to delete the old one — that last step fails
+    # harmlessly while a vmup is still running, and the next install sweeps it.
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     $destPath = Join-Path $InstallDir "$Binary.exe"
-    Copy-Item $binaryPath $destPath -Force
+    $oldPath = "$destPath.old"
+    $newPath = Join-Path $InstallDir ".$Binary.new.exe"
+
+    # Sweep a leftover .old from a previous upgrade that was running at the time.
+    if (Test-Path $oldPath) {
+        Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
+    }
+
+    Copy-Item $binaryPath $newPath -Force
+
+    if (Test-Path $destPath) {
+        try {
+            Move-Item $destPath $oldPath -Force
+        } catch {
+            Remove-Item $newPath -Force -ErrorAction SilentlyContinue
+            Write-Err "Could not replace $destPath. Close any running vmup and try again."
+        }
+    }
+
+    try {
+        Move-Item $newPath $destPath -Force
+    } catch {
+        # Put the previous binary back so the install is not left empty.
+        if (Test-Path $oldPath) { Move-Item $oldPath $destPath -Force -ErrorAction SilentlyContinue }
+        Remove-Item $newPath -Force -ErrorAction SilentlyContinue
+        Write-Err "Could not move the new binary into place at $destPath."
+    }
+
+    Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
 
     # Add to user PATH if not already present
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
