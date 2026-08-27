@@ -40,9 +40,43 @@ try {
     $archivePath = Join-Path $tmpDir $archive
     Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$archive" -OutFile $archivePath -Headers $headers -UseBasicParsing
 
+    # Verify the download against the checksums published with the release. The
+    # checksum file embeds the version without its leading "v" (GoReleaser strips
+    # it), e.g. vmup_1.9.0_checksums.txt for tag v1.9.0.
+    Write-Info "Verifying checksum..."
+    $checksumFile = "${Binary}_$($tag.TrimStart('v'))_checksums.txt"
+    try {
+        $checksumResp = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/download/$tag/$checksumFile" -Headers $headers -UseBasicParsing
+    } catch {
+        Write-Err "Could not download $checksumFile to verify the release."
+    }
+
+    # GitHub serves release assets as application/octet-stream, and with
+    # -UseBasicParsing that makes .Content a byte[] rather than a string.
+    # Splitting the byte array into lines yields numbers, not text, so the
+    # filename never matches. Decode explicitly.
+    if ($checksumResp.Content -is [byte[]]) {
+        $checksumText = [System.Text.Encoding]::UTF8.GetString($checksumResp.Content)
+    } else {
+        $checksumText = [string]$checksumResp.Content
+    }
+
+    $pattern = '\s' + [regex]::Escape($archive) + '\s*$'
+    $line = $checksumText -split '\r?\n' | Where-Object { $_ -match $pattern } | Select-Object -First 1
+    if (-not $line) {
+        Write-Err "Could not find a checksum for $archive in $checksumFile."
+    }
+
+    $expected = ($line -split '\s+')[0]
+    $actual = (Get-FileHash -Path $archivePath -Algorithm SHA256).Hash
+    # -ne on strings is case-insensitive in PowerShell; GoReleaser writes the
+    # digest lowercase and Get-FileHash returns it uppercase.
+    if ($actual -ne $expected) {
+        Write-Err "Checksum mismatch for $archive.`n  expected: $expected`n  actual:   $actual`nRefusing to install. Please report this at https://github.com/$Repo/issues"
+    }
+
     # Extract
     Write-Info "Extracting..."
-    $archivePath = Join-Path $tmpDir $archive
     tar xzf $archivePath -C $tmpDir
     $binaryPath = Join-Path $tmpDir "$Binary.exe"
 
@@ -51,9 +85,42 @@ try {
     }
 
     # Install
+    #
+    # Windows will not let a running .exe be overwritten or deleted, but it DOES
+    # allow one to be renamed. So move any existing binary aside, move the new
+    # one into place, and try to delete the old one — that last step fails
+    # harmlessly while a vmup is still running, and the next install sweeps it.
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     $destPath = Join-Path $InstallDir "$Binary.exe"
-    Copy-Item $binaryPath $destPath -Force
+    $oldPath = "$destPath.old"
+    $newPath = Join-Path $InstallDir ".$Binary.new.exe"
+
+    # Sweep a leftover .old from a previous upgrade that was running at the time.
+    if (Test-Path $oldPath) {
+        Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
+    }
+
+    Copy-Item $binaryPath $newPath -Force
+
+    if (Test-Path $destPath) {
+        try {
+            Move-Item $destPath $oldPath -Force
+        } catch {
+            Remove-Item $newPath -Force -ErrorAction SilentlyContinue
+            Write-Err "Could not replace $destPath. Close any running vmup and try again."
+        }
+    }
+
+    try {
+        Move-Item $newPath $destPath -Force
+    } catch {
+        # Put the previous binary back so the install is not left empty.
+        if (Test-Path $oldPath) { Move-Item $oldPath $destPath -Force -ErrorAction SilentlyContinue }
+        Remove-Item $newPath -Force -ErrorAction SilentlyContinue
+        Write-Err "Could not move the new binary into place at $destPath."
+    }
+
+    Remove-Item $oldPath -Force -ErrorAction SilentlyContinue
 
     # Add to user PATH if not already present
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")

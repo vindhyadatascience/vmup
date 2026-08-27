@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Deliberately unfiltered: a pull request targeting another branch is still
+  # a pull request. Filtering this to main means a stacked PR gets no CI at
+  # all, silently — no failing check, just no check.
   pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -26,3 +28,37 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  # install.ps1 cannot be exercised on the Linux runner, and a broken installer
+  # is only discovered by users. This parses it, then runs it twice: once to
+  # install, once to exercise the upgrade path over an existing binary (Windows
+  # will not let a running .exe be overwritten, so the swap is rename-based).
+  install-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse install.ps1
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./install.ps1), [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Host $_.Message }; exit 1 }
+          Write-Host "install.ps1 parses cleanly"
+
+      - name: Install, then upgrade over the existing binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          ./install.ps1
+          $exe = Join-Path $env:LOCALAPPDATA "vmup\vmup.exe"
+          if (-not (Test-Path $exe)) { throw "vmup.exe was not installed" }
+          & $exe --version
+          ./install.ps1
+          if (-not (Test-Path $exe)) { throw "vmup.exe missing after upgrade" }
+          & $exe --version
+          if (Test-Path "$exe.old") { throw "left a stale .old behind" }
