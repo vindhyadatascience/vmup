@@ -34,14 +34,14 @@ var fallbackRates = map[string]MachineTypeRate{
 	"c4a": {VCPURate: 0.03086, MemoryRate: 0.000350},
 	"c4d": {VCPURate: 0.03270, MemoryRate: 0.000350},
 	// Memory optimized
-	"m1":  {VCPURate: 0.034800, MemoryRate: 0.005100},
-	"m2":  {VCPURate: 0.034800, MemoryRate: 0.005100},
-	"m3":  {VCPURate: 0.034800, MemoryRate: 0.005100},
-	"m4":  {VCPURate: 0.00183, MemoryRate: 0.004570},
+	"m1": {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m2": {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m3": {VCPURate: 0.034800, MemoryRate: 0.005100},
+	"m4": {VCPURate: 0.00183, MemoryRate: 0.004570},
 	// Accelerator optimized
-	"a2":  {VCPURate: 0.01739, MemoryRate: 0.002330},
-	"a3":  {VCPURate: 0.01189, MemoryRate: 0.000952},
-	"g2":  {VCPURate: 0.02499, MemoryRate: 0.002927},
+	"a2": {VCPURate: 0.01739, MemoryRate: 0.002330},
+	"a3": {VCPURate: 0.01189, MemoryRate: 0.000952},
+	"g2": {VCPURate: 0.02499, MemoryRate: 0.002927},
 	// Tau (ARM/AMD)
 	"t2a": {VCPURate: 0.02490, MemoryRate: 0.003400},
 	"t2d": {VCPURate: 0.02750, MemoryRate: 0.003686},
@@ -53,8 +53,8 @@ var fallbackRates = map[string]MachineTypeRate{
 
 // Flat-rate instances (not per-vCPU/memory).
 var flatRateInstances = map[string]float64{
-	"f1-micro":  0.0076,
-	"g1-small":  0.0257,
+	"f1-micro": 0.0076,
+	"g1-small": 0.0257,
 }
 
 var (

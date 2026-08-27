@@ -186,8 +186,8 @@ func (m diskImportModel) View() string {
 // --- Disk Resize Form ---
 
 type diskResizeModel struct {
-	form       *huh.Form
-	cfg        *config.DiskConfig
+	form        *huh.Form
+	cfg         *config.DiskConfig
 	currentSize string
 }
 
@@ -199,7 +199,7 @@ type diskResizeCancelMsg struct{}
 
 func newDiskResizeModel(cfg config.DiskConfig, currentSizeGB string) diskResizeModel {
 	m := diskResizeModel{
-		cfg:        &cfg,
+		cfg:         &cfg,
 		currentSize: currentSizeGB,
 	}
 

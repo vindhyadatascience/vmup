@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Update checking and a `vmup update` command. vmup checks for a newer release
+  in the background at most once a day and shows an unobtrusive badge in the
+  title bar when one exists; `u` or the `update` command in the palette explains
+  how to install it. `vmup update` downloads the release, verifies it against
+  the published checksums, and replaces the binary; `vmup update --check`
+  reports without installing. An install owned by a package manager (Homebrew,
+  Scoop, winget, Chocolatey, conda) is left to that manager, and an install in a
+  directory vmup cannot write to is reported rather than escalated — there is no
+  privileged update path. Set `VMUP_NO_UPDATE_CHECK` to disable checking.
+
 ## [1.9.0] - 2026-08-27
 
 ### Added

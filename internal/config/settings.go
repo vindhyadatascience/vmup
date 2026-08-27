@@ -227,11 +227,11 @@ type ProjectSummary struct {
 }
 
 type DiskSummary struct {
-	Name     string
+	Name      string
 	ProjectID string
-	Zone     string
-	DiskType string
-	SizeGB   string
+	Zone      string
+	DiskType  string
+	SizeGB    string
 }
 
 // LoadProjectSummaries reads all project tfvars in the given data path.

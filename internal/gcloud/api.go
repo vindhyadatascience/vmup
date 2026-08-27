@@ -15,10 +15,10 @@ import (
 // --- Token management ---
 
 var (
-	cachedToken   string
-	tokenExpiry   time.Time
-	tokenMu       sync.Mutex
-	httpClient    = &http.Client{Timeout: 30 * time.Second}
+	cachedToken string
+	tokenExpiry time.Time
+	tokenMu     sync.Mutex
+	httpClient  = &http.Client{Timeout: 30 * time.Second}
 )
 
 func getAccessToken() (string, error) {

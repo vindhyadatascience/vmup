@@ -38,18 +38,18 @@ type settingsModel struct {
 	width        int
 
 	// Summary/review/confirm phase
-	pendingDir              string
-	pendingAction           settingsAction
-	summaryForm             *huh.Form
-	summaryChoice           *string
-	srcProjects, srcDisks   int
-	dstProjects, dstDisks   int
-	srcProjectList          []config.ProjectSummary
-	srcDiskList             []config.DiskSummary
-	dstProjectList          []config.ProjectSummary
-	dstDiskList             []config.DiskSummary
-	reviewLoaded            bool
-	reviewScrollOffset      int
+	pendingDir            string
+	pendingAction         settingsAction
+	summaryForm           *huh.Form
+	summaryChoice         *string
+	srcProjects, srcDisks int
+	dstProjects, dstDisks int
+	srcProjectList        []config.ProjectSummary
+	srcDiskList           []config.DiskSummary
+	dstProjectList        []config.ProjectSummary
+	dstDiskList           []config.DiskSummary
+	reviewLoaded          bool
+	reviewScrollOffset    int
 
 	// Confirm phase
 	confirmForm  *huh.Form
