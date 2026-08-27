@@ -20,12 +20,24 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # macOS signing/notarization is deferred — see RELEASING.md to activate it
-      # (adds a quill install step + binary_signs config + the QUILL_* secrets).
+      # macOS signing + notarization runs inside GoReleaser's notarize pipe,
+      # which is pure Go — no macOS runner, no keychain, no extra steps here.
+      # The MACOS_* secrets below are optional: with none set, the pipe skips
+      # and the release is byte-for-byte what it was before. See RELEASING.md.
+      #
+      # The GoReleaser version is pinned to a minor rather than floating on
+      # "~> v2" because released asset names are a compatibility contract for
+      # install.sh and the self-updater, and signing behaviour should not
+      # change underneath a release without an explicit bump here.
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: "~> v2"
+          version: "~> v2.18"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}

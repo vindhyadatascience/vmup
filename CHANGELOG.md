@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- macOS release binaries are signed with a Developer ID certificate and
+  notarized with Apple, removing the Gatekeeper "unidentified developer"
+  warning for archives downloaded in a browser. The pipeline is inert until the
+  signing credentials are configured; see RELEASING.md.
+
+### Changed
+- GoReleaser is pinned to `~> v2.18` in the release workflow instead of
+  floating on `~> v2`, so released asset names and signing behaviour cannot
+  change between releases without an explicit bump.
+
+### Removed
+- The outdated `binary_signs` + quill signing recipe in RELEASING.md, which
+  referenced a config field that does not exist in GoReleaser OSS.
+
 ## [1.9.0] - 2026-08-27
 
 ### Added
