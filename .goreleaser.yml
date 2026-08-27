@@ -19,13 +19,42 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
-# macOS code signing + notarization is deferred until the Developer ID
-# credentials are available. To turn it on, add a quill `binary_signs` block
-# here and the QUILL_* secrets — see RELEASING.md for the full recipe. Until
-# then, releases ship unsigned.
+# macOS Developer ID signing + notarization.
+#
+# This block is INERT until the MACOS_SIGN_P12 secret exists: `enabled` is
+# evaluated before any credential is read, so with no secrets set the pipe
+# skips and releases ship exactly as they did before. Adding the five repo
+# secrets is the only step needed to turn it on — no config change.
+#
+# GoReleaser's notarize pipe is pure Go (it vendors quill as a library and
+# talks to Apple's notary API over HTTPS), so this runs on ubuntu-latest with
+# no macOS runner and no keychain. See RELEASING.md for the credential setup.
+#
+# Note: the pipe signs and notarizes but does NOT staple — a ticket cannot be
+# attached to a bare Mach-O binary. Gatekeeper resolves it via an online
+# lookup instead, which is why a first run with no network can still be
+# refused for a browser-downloaded copy.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        timeout: 30m
 
+# The asset names below are a COMPATIBILITY CONTRACT. install.sh, install.ps1
+# and (once it ships) the self-updater compiled into every released binary all
+# resolve these names. Add new formats as an additional archives entry with its
+# own id; never rename or replace an existing one, or already-installed
+# clients 404 permanently.
 archives:
-  - formats:
+  - id: default
+    formats:
       - tar.gz
     name_template: "vmup_{{ .Os }}_{{ .Arch }}"
 

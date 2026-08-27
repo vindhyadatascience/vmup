@@ -2,39 +2,58 @@
 
 Releases are automated with [GoReleaser](https://goreleaser.com/) and GitHub
 Actions. Pushing a `vX.Y.Z` tag triggers `.github/workflows/release.yml`, which
-cross-compiles the binaries, builds the archives + checksums, and publishes a
+cross-compiles the binaries, signs and notarizes the macOS builds (once the
+credentials below exist), builds the archives + checksums, and publishes a
 GitHub Release.
 
 ```bash
-git tag v1.7.0
-git push origin v1.7.0
+git tag v1.9.0
+git push origin v1.9.0
 ```
 
-macOS binaries are currently shipped **unsigned**. That's fine for the primary
-install path — `install.sh` doesn't quarantine binaries, so they run as-is; only
-users who download a release archive in a browser hit Gatekeeper, which they can
-clear with `xattr -d com.apple.quarantine ./vmup`. To enable Developer ID signing
-+ notarization, see [Enabling macOS signing](#enabling-macos-signing-optional).
+## macOS signing and notarization
 
-## Enabling macOS signing (optional)
-
-Signing is **not wired into the release pipeline by default** — it requires both
-the config changes in Step 4 and the five secrets below. quill signs and
-notarizes the macOS binaries on the Linux runner, so no macOS runner is needed.
+`.goreleaser.yml` already contains the `notarize.macos` block. It is **inert
+until the secrets exist** — `enabled` is evaluated before any credential is
+read, so with no secrets set the pipe skips and the release is byte-for-byte
+what it would have been. **Adding the five repository secrets below is the only
+step required to turn signing on.** There is no config change, no extra
+workflow step, and no macOS runner: GoReleaser's notarize pipe is pure Go, it
+vendors quill as a library and talks to Apple's notary API over HTTPS from the
+existing `ubuntu-latest` runner.
 
 You need a **paid Apple Developer Program** membership. Creating a Developer ID
 certificate requires the **Account Holder** role (individual accounts already
-have it).
-
-You will produce five GitHub Actions secrets:
+have it). A Mac is needed exactly once, to generate the CSR and export the
+`.p12` — not to run anything in CI.
 
 | Secret | What it is |
 | --- | --- |
-| `QUILL_SIGN_P12` | base64 of your Developer ID Application cert (`.p12`) |
-| `QUILL_SIGN_PASSWORD` | the password you set when exporting the `.p12` |
-| `QUILL_NOTARY_KEY` | contents of your App Store Connect API key (`.p8`) |
-| `QUILL_NOTARY_KEY_ID` | the API key's Key ID |
-| `QUILL_NOTARY_ISSUER` | the API key's Issuer ID |
+| `MACOS_SIGN_P12` | single-line base64 of the Developer ID Application cert (`.p12`) |
+| `MACOS_SIGN_PASSWORD` | the password that opens the `.p12` |
+| `MACOS_NOTARY_KEY` | single-line base64 of the App Store Connect API key (`.p8`) |
+| `MACOS_NOTARY_KEY_ID` | the API key's Key ID |
+| `MACOS_NOTARY_ISSUER_ID` | the API key's Issuer UUID |
+
+Both key fields take *base64'd contents* (GoReleaser also accepts a file path,
+which is not useful in CI). Encode with no line wrapping and no trailing
+newline — on macOS `base64 -i <file>` already emits a single line.
+
+The `.p12` must bundle the **Developer ID Certification Authority (G2)**
+intermediate, not just the leaf certificate. A leaf-only export cannot build a
+complete chain and fails at signing time.
+
+> **Before adding these secrets**, restrict who can create `v*` tags. The
+> release workflow triggers on tag push, and GitHub runs the workflow file
+> *from the pushed commit* — so anyone able to create a tag can run arbitrary
+> code with access to these credentials. A repository ruleset targeting tags
+> `v*` with **Restrict creations** is the control that closes this; branch
+> protection on `main` does not.
+
+**Already have a Developer ID Application certificate for the team?** Then
+Steps 1 and 2 are done — reuse the existing `.p12` and App Store Connect API
+key and skip to Step 3. One certificate covers every product signed by that
+team; there is no need for a per-project certificate.
 
 ### Step 1 — Developer ID Application certificate (signing)
 
@@ -48,10 +67,10 @@ You will produce five GitHub Actions secrets:
 3. Double-click the `.cer` to add it to your **login** keychain.
 4. In Keychain Access, find **Developer ID Application: \<your name\>**, expand
    it to confirm a private key is attached, right-click → **Export** → save as
-   a `.p12` and set a strong password (this becomes `QUILL_SIGN_PASSWORD`).
+   a `.p12` and set a strong password (this becomes `MACOS_SIGN_PASSWORD`).
 5. Base64-encode the `.p12` for the secret:
    ```bash
-   base64 -i DeveloperID.p12 | pbcopy   # now in your clipboard → QUILL_SIGN_P12
+   base64 -i DeveloperID.p12 | pbcopy   # now in your clipboard → MACOS_SIGN_P12
    ```
 
 ### Step 2 — App Store Connect API key (notarization)
@@ -59,80 +78,59 @@ You will produce five GitHub Actions secrets:
 1. Go to <https://appstoreconnect.apple.com/access/integrations/api> (App Store
    Connect → **Users and Access** → **Integrations** → **App Store Connect
    API**, **Team Keys**).
-2. Note the **Issuer ID** shown at the top → `QUILL_NOTARY_ISSUER`.
+2. Note the **Issuer ID** shown at the top → `MACOS_NOTARY_ISSUER_ID`.
 3. Click **+**, give the key a name, set **Access: Developer** (or higher),
    generate it.
-4. Note the new key's **Key ID** → `QUILL_NOTARY_KEY_ID`.
+4. Note the new key's **Key ID** → `MACOS_NOTARY_KEY_ID`.
 5. **Download the `.p8`** (you can only download it once). Its full contents
-   (including the `-----BEGIN PRIVATE KEY-----` lines) become `QUILL_NOTARY_KEY`.
+   (including the `-----BEGIN PRIVATE KEY-----` lines) become `MACOS_NOTARY_KEY`.
 
 ### Step 3 — Add the secrets to GitHub
 
 In the repo: **Settings ▸ Secrets and variables ▸ Actions ▸ New repository
-secret**, add all five secrets from the table above.
+secret**, add all five secrets from the table above. The next tagged release
+signs and notarizes automatically.
 
-### Step 4 — Wire signing into the release
+## Verifying a release
 
-Add a quill install step to `.github/workflows/release.yml` (before the "Run
-GoReleaser" step) and pass the secrets as env to GoReleaser:
+**Do not trust the workflow's exit status.** GoReleaser's notary pipe treats a
+notarization *timeout* as a log line, not an error — on a slow day at Apple the
+release publishes with signed-but-un-notarized binaries and the job still goes
+green. After each release:
 
-```yaml
-      - name: Install quill
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/quill/main/install.sh | sh -s -- -b /usr/local/bin
+1. Search the workflow run log for `notarize timeout`. If present, the macOS
+   binaries in that release are not notarized; cut a new patch release.
+2. Download and check the published binary:
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          QUILL_SIGN_P12: ${{ secrets.QUILL_SIGN_P12 }}
-          QUILL_SIGN_PASSWORD: ${{ secrets.QUILL_SIGN_PASSWORD }}
-          QUILL_NOTARY_KEY: ${{ secrets.QUILL_NOTARY_KEY }}
-          QUILL_NOTARY_KEY_ID: ${{ secrets.QUILL_NOTARY_KEY_ID }}
-          QUILL_NOTARY_ISSUER: ${{ secrets.QUILL_NOTARY_ISSUER }}
-```
+   ```bash
+   codesign -dv --verbose=4 ./vmup   # expect a Developer ID authority
+   spctl -a -vvv -t install ./vmup   # expect: accepted, source=Notarized Developer ID
+   ```
 
-Add a `binary_signs` block to `.goreleaser.yml` that signs only the macOS
-binaries, then **validate it with `goreleaser check`** before tagging:
+### Why there is no stapled ticket
 
-```yaml
-binary_signs:
-  - cmd: quill
-    args: ["sign-and-notarize", "${artifact}", "-vv"]
-    if: '{{ eq .Os "darwin" }}'
-    output: true
-```
+A notarization ticket cannot be stapled to a bare Mach-O binary — `stapler`
+only attaches tickets to `.app`, `.dmg`, `.pkg` and `.kext` containers. vmup
+ships a bare binary in a tarball, so Gatekeeper resolves the ticket with an
+**online lookup** instead. In practice this means a browser-downloaded copy is
+accepted silently when the machine is online, and can still be refused on a
+first run with no network. Stapled `.pkg`/`.dmg` artifacts require GoReleaser
+Pro.
 
-!!! note
-    The `if` filter on `binary_signs` requires a recent GoReleaser — older
-    versions (e.g. v2.16) reject it with *"field if not found in type
-    config.BinarySign"*. If `goreleaser check` fails on it, pin a newer
-    GoReleaser in the action (`version:`) or restrict signing by build `ids`
-    (define a darwin-only build id and reference it via `ids:`) instead.
+### What notarization does and does not fix
 
-> Creating the Developer ID certificate (Step 1) requires the Apple Developer
-> account's **Account Holder** role — it cannot be done by Admins. If you are not
-> the Account Holder, generate the CSR yourself and have the Account Holder
-> create the certificate from it, so the private key stays with you.
+Gatekeeper only assesses a file carrying the `com.apple.quarantine` extended
+attribute, and only quarantine-aware downloaders set it — browsers, Mail,
+AirDrop, and Homebrew **Cask**. `curl` does not. So notarization changes the
+experience for exactly one install path: downloading a release archive in a
+browser. Users who install via `install.sh`, or who update in place, were never
+Gatekeeper-checked to begin with.
 
 ## Local testing
 
-With [GoReleaser](https://goreleaser.com/install/) and `quill` installed:
+With [GoReleaser](https://goreleaser.com/install/) installed:
 
 ```bash
-goreleaser release --snapshot --clean   # ad-hoc signs, no Apple credentials
 goreleaser check                        # validate .goreleaser.yml
-```
-
-## Verifying a signed binary
-
-After downloading a released macOS binary:
-
-```bash
-codesign -dv --verbose=4 ./vmup    # shows the Developer ID authority
-spctl -a -vvv -t install ./vmup    # Gatekeeper assessment (bare binaries may
-                                   # report "rejected" but still run once
-                                   # notarization is recognized online)
+goreleaser release --snapshot --clean   # build locally; signing stays skipped
 ```
