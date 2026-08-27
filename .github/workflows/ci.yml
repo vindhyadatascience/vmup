@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Deliberately unfiltered: a pull request targeting another branch is still
+  # a pull request. Filtering this to main means a stacked PR gets no CI at
+  # all, silently — no failing check, just no check.
   pull_request:
-    branches: [main]
 
 jobs:
   build:
